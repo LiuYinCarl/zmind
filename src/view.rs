@@ -12,26 +12,37 @@ use crate::{mind_map::MindMap, App};
 pub struct View {}
 
 impl View {
-    /// File picker: show available .hmm files + new option.
-    pub fn show_file_picker(app: &mut App, f: &mut Frame, area: Rect) {
-        let mut items: Vec<ListItem> = Vec::new();
-        items.push(ListItem::from(Span::styled(
-            "+ New mind map",
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-        )));
-        for path in &app.file_list {
-            let name = path.file_stem()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| "?".to_string());
-            items.push(ListItem::from(Span::raw(name)));
-        }
+    pub fn show_map_list_hint(f: &mut Frame, area: Rect) {
+        let hint = Span::styled(
+            " n:new | r:rename | d:delete | Enter:open | q:quit",
+            Style::default().fg(Color::Green),
+        );
+        f.render_widget(Paragraph::new(Line::from(hint)), area);
+    }
 
+    pub fn show_map_list(app: &mut App, f: &mut Frame, area: Rect) {
+        let mut items: Vec<ListItem> = Vec::new();
+        for (i, map) in app.maps.iter().enumerate() {
+            let marker = if i == app.active_index { "* " } else { "  " };
+            items.push(ListItem::from(Span::raw(format!("{}{}", marker, map.name))));
+        }
         let list = List::new(items)
-            .block(Block::bordered().title(" zmind - Open Mind Map "))
+            .block(Block::bordered().title(" zmind - Mind Maps "))
             .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
             .highlight_symbol("> ");
+        f.render_stateful_widget(list, area, &mut app.map_list_state);
+    }
 
-        f.render_stateful_widget(list, area, &mut app.file_list_state);
+    pub fn show_rename_map_modal(f: &mut Frame, area: Rect, input: &Input) {
+        let modal_area = Self::create_rect_area(50, 3, area);
+        let width = modal_area.width.max(3) - 3;
+        let scroll = input.visual_scroll(width as usize);
+        let input_widget = Paragraph::new(input.value())
+            .block(Block::default().borders(Borders::ALL).title("Map Name"))
+            .scroll((0, scroll as u16));
+        f.render_widget(Clear, modal_area);
+        f.render_widget(input_widget, modal_area);
+        f.set_cursor(modal_area.x + ((input.visual_cursor()).max(scroll) - scroll) as u16 + 1, modal_area.y + 1);
     }
 
     /// Render the mind map as a proper visual map with connecting lines.
@@ -113,20 +124,9 @@ impl View {
     }
 
     fn get_title(app: &App) -> String {
-        let mm = &app.mind_map;
-        let modified = if mm.modified { " [+]" } else { "" };
+        let name = if app.mind_map.name.is_empty() { "Untitled" } else { &app.mind_map.name };
         let pos = format!(" @{},{}", app.viewport_x, app.viewport_y);
-        match &mm.filename {
-            Some(path) => format!(
-                " zmind: {}{}{} ",
-                path.file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "?".to_string()),
-                modified,
-                pos,
-            ),
-            None => format!(" zmind{}{} ", modified, pos),
-        }
+        format!(" zmind: {} {} ", name, pos)
     }
 
     /// Render status bar at the bottom.
@@ -189,13 +189,6 @@ impl View {
         f.render_widget(Paragraph::new(Line::from(hint)), area);
     }
 
-    pub fn show_file_picker_hint(f: &mut Frame, area: Rect) {
-        let hint = Span::styled(
-            " ↑↓/jk:move | Enter:open | n:new | q:quit",
-            Style::default().fg(Color::Green),
-        );
-        f.render_widget(Paragraph::new(Line::from(hint)), area);
-    }
 
     // ─── Modals ────────────────────────────────────────────────────
 
@@ -227,25 +220,6 @@ impl View {
 
         let input_widget = Paragraph::new(input.value())
             .block(Block::default().borders(Borders::ALL).title("Search"))
-            .scroll((0, scroll as u16));
-
-        f.render_widget(Clear, modal_area);
-        f.render_widget(input_widget, modal_area);
-
-        f.set_cursor(
-            modal_area.x + ((input.visual_cursor()).max(scroll) - scroll) as u16 + 1,
-            modal_area.y + 1,
-        );
-    }
-
-    pub fn show_save_as_modal(f: &mut Frame, area: Rect, input: &Input) {
-        let modal_area = Self::create_rect_area(50, 3, area);
-
-        let width = modal_area.width.max(3) - 3;
-        let scroll = input.visual_scroll(width as usize);
-
-        let input_widget = Paragraph::new(input.value())
-            .block(Block::default().borders(Borders::ALL).title("Save As"))
             .scroll((0, scroll as u16));
 
         f.render_widget(Clear, modal_area);

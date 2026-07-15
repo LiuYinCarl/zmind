@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs, io, path::PathBuf};
+use std::collections::HashMap;
 
 /// A single node in the mind map tree.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -49,11 +49,10 @@ pub struct NodeLayout {
 /// The entire mind map state.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct MindMap {
+    pub name: String,
     pub nodes: HashMap<usize, Node>,
     pub root_id: usize,
     pub active_node: usize,
-    pub filename: Option<PathBuf>,
-    pub modified: bool,
 
     // Undo stack
     #[serde(skip)]
@@ -129,11 +128,10 @@ impl MindMap {
         );
 
         let mut mm = MindMap {
+            name: String::new(),
             nodes,
             root_id: 1,
             active_node: 1,
-            filename: None,
-            modified: false,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             clipboard: None,
@@ -151,37 +149,17 @@ impl MindMap {
         mm
     }
 
-    /// Load from a JSON file.
-    pub fn from_file(path: &PathBuf) -> io::Result<Self> {
-        let content = fs::read_to_string(path)?;
-        let mut mm: Self = serde_json::from_str(&content)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        mm.filename = Some(path.clone());
-        mm.modified = false;
-        mm.undo_stack.clear();
-        mm.redo_stack.clear();
-        mm.clipboard = None;
-        mm.refresh_display();
-        Ok(mm)
+    pub fn new_named(name: String) -> Self {
+        let mut mm = Self::new();
+        mm.name = name;
+        mm
     }
+
+    /// Load from a JSON file.
+
 
     /// Save to JSON file.
-    pub fn save(&mut self) -> io::Result<()> {
-        if let Some(ref path) = self.filename {
-            let json = serde_json::to_string_pretty(self)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-            fs::write(path, &json)?;
-            self.modified = false;
-            Ok(())
-        } else {
-            Err(io::Error::new(io::ErrorKind::NotFound, "No filename set"))
-        }
-    }
 
-    pub fn save_as(&mut self, path: PathBuf) -> io::Result<()> {
-        self.filename = Some(path);
-        self.save()
-    }
 
     // ─── Navigation ────────────────────────────────────────────────    // ─── Navigation ────────────────────────────────────────────────
 
@@ -267,8 +245,7 @@ impl MindMap {
         if let Some(node) = self.nodes.get_mut(&self.active_node) {
             node.title = new_title;
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn update_note(&mut self, note: String) {
@@ -276,8 +253,7 @@ impl MindMap {
         if let Some(node) = self.nodes.get_mut(&self.active_node) {
             node.note = note;
         }
-        self.modified = true;
-    }
+            }
 
     pub fn insert_sibling(&mut self) {
         self.push_undo();
@@ -304,8 +280,7 @@ impl MindMap {
 
         self.nodes.insert(new_id, new_node);
         self.active_node = new_id;
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn insert_child(&mut self) {
@@ -326,8 +301,7 @@ impl MindMap {
 
         self.nodes.insert(new_id, new_node);
         self.active_node = new_id;
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn delete_node(&mut self, use_clipboard: bool) {
@@ -366,8 +340,7 @@ impl MindMap {
             self.active_node = self.root_id;
         }
 
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn delete_children(&mut self, use_clipboard: bool) {
@@ -407,8 +380,7 @@ impl MindMap {
             node.children.clear();
         }
 
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     fn collect_all_descendants(&self, id: usize) -> Vec<usize> {
@@ -493,7 +465,7 @@ impl MindMap {
         else { let rid = 1; nodes.insert(1, Node { title: "root".to_string(), parent: 0, children: first_level.clone(), collapsed: false, hidden: false, note: String::new() }); for &id in &first_level { if let Some(n) = nodes.get_mut(&id) { n.parent = 1; } } rid };
         if let Some(n) = nodes.get_mut(&0) { n.children = vec![root_id]; }
         let active_node = root_id;
-        let mut mm = MindMap { nodes, root_id, active_node, filename: None, modified: false, undo_stack: Vec::new(), redo_stack: Vec::new(), clipboard: None, visible_nodes: Vec::new(), layouts: HashMap::new(), map_width: 0, map_height: 0, canvas: Vec::new(), max_node_width: 40, line_spacing: 1, show_hidden: false, align_levels: false };
+        let mut mm = MindMap { name: String::new(), nodes, root_id, active_node, undo_stack: Vec::new(), redo_stack: Vec::new(), clipboard: None, visible_nodes: Vec::new(), layouts: HashMap::new(), map_width: 0, map_height: 0, canvas: Vec::new(), max_node_width: 40, line_spacing: 1, show_hidden: false, align_levels: false };
         mm.refresh_display();
         mm
     }
@@ -565,8 +537,7 @@ impl MindMap {
         if !ids.is_empty() {
             self.active_node = ids[0];
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn paste_as_siblings(&mut self) {
@@ -600,8 +571,7 @@ impl MindMap {
             }
             self.active_node = all_ids[0];
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     /// Parse clipboard text and transplant all top-level nodes. Returns new IDs.
@@ -665,8 +635,7 @@ impl MindMap {
             node.title.push_str(" ");
             node.title.push_str(&first_line);
         }
-        self.modified = true;
-    }
+            }
 
     pub fn delete_node_no_clipboard(&mut self) {
         self.delete_node(false);
@@ -842,8 +811,7 @@ impl MindMap {
                 self.active_node = node.parent;
             }
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     // ─── Move Nodes ────────────────────────────────────────────────
@@ -862,8 +830,7 @@ impl MindMap {
                 }
             }
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn move_node_down(&mut self) {
@@ -880,8 +847,7 @@ impl MindMap {
                 }
             }
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     pub fn sort_siblings(&mut self) {
@@ -907,8 +873,7 @@ impl MindMap {
                 title_a.cmp(title_b)
             });
         }
-        self.modified = true;
-        self.refresh_display();
+                self.refresh_display();
     }
 
     // ─── Symbols / Marks ───────────────────────────────────────────
@@ -934,8 +899,7 @@ impl MindMap {
             }
         }
 
-        self.modified = true;
-    }
+            }
 
     pub fn toggle_numbers(&mut self) {
         let current = self.active_node;
@@ -976,8 +940,7 @@ impl MindMap {
             }
         }
 
-        self.modified = true;
-    }
+            }
 
     // ─── Ranking ───────────────────────────────────────────────────
 
@@ -1005,8 +968,7 @@ impl MindMap {
             node.title = new_title;
         }
 
-        self.modified = true;
-    }
+            }
 
     fn strip_ranks(title: &str) -> String {
         let trimmed = title.trim_start_matches(|c: char| c == '+' || c == '-' || c == ' ');
@@ -1037,8 +999,7 @@ impl MindMap {
             node.title = new_title;
         }
 
-        self.modified = true;
-    }
+            }
 
     pub fn modify_negative_rank(&mut self, delta: i32) {
         let current = self.active_node;
@@ -1063,8 +1024,7 @@ impl MindMap {
             node.title = new_title;
         }
 
-        self.modified = true;
-    }
+            }
 
     fn parse_ranks(title: &str) -> (i32, i32) {
         let mut pos = 0i32;
@@ -1099,8 +1059,7 @@ impl MindMap {
                 node.title = format!("{} {}", "★".repeat(star_count + 1), rest);
             }
         }
-        self.modified = true;
-    }
+            }
 
     pub fn remove_star(&mut self) {
         let current = self.active_node;
@@ -1117,8 +1076,7 @@ impl MindMap {
                 }
             }
         }
-        self.modified = true;
-    }
+            }
 
     // ─── Undo / Redo ───────────────────────────────────────────────
 
@@ -1150,8 +1108,7 @@ impl MindMap {
             self.nodes = snapshot.nodes;
             self.root_id = snapshot.root_id;
             self.active_node = snapshot.active_node;
-            self.modified = true;
-            self.refresh_display();
+                        self.refresh_display();
         }
     }
 
@@ -1167,8 +1124,7 @@ impl MindMap {
             self.nodes = snapshot.nodes;
             self.root_id = snapshot.root_id;
             self.active_node = snapshot.active_node;
-            self.modified = true;
-            self.refresh_display();
+                        self.refresh_display();
         }
     }
 
@@ -2478,28 +2434,16 @@ mod tests {
 
     #[test]
     fn test_note_persistence() {
-        use std::fs;
-        let tmp = "/tmp/zmind_test_note.hmm";
-        let tmp_json = "/tmp/zmind_test_note.hmm.json";
-        let _ = fs::remove_file(tmp);
-        let _ = fs::remove_file(tmp_json);
-
-        // Create and save with note
         let mut mm = MindMap::from_text("root\n\tA");
-        mm.filename = Some(std::path::PathBuf::from(tmp));
         let a_id = find_node_by_title(&mm, "A");
         mm.active_node = a_id;
         mm.update_note("This is a note".to_string());
-        mm.save().unwrap();
 
-        // Reload and verify
-        let mm2 = MindMap::from_file(&std::path::PathBuf::from(tmp)).unwrap();
+        // Roundtrip via serde (same as Store save/load)
+        let json = serde_json::to_string(&mm).unwrap();
+        let mm2: MindMap = serde_json::from_str(&json).unwrap();
         let a2_id = find_node_by_title(&mm2, "A");
         assert_eq!(mm2.nodes[&a2_id].note, "This is a note");
-
-        // Cleanup
-        let _ = fs::remove_file(tmp);
-        let _ = fs::remove_file(tmp_json);
     }
 
     #[test]
