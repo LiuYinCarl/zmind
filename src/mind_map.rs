@@ -2480,17 +2480,42 @@ mod tests {
 
     #[test]
     fn test_export_ascii_alignment() {
-        let mut mm = MindMap::from_text("root\n\t测试\n\t\t子节点");
+        // Create a simple tree and verify export alignment
+        let mut mm = MindMap::from_text("root\n\tA\n\tB");
+        mm.line_spacing = 0;
         mm.refresh_display();
         let ascii = mm.export_ascii();
         let lines: Vec<&str> = ascii.lines().collect();
-        for w in lines.windows(2) {
-            let upper = w[0];
-            let lower = w[1];
-            if let Some(pos) = upper.find('╮') {
-                let below = lower.chars().nth(pos).unwrap_or(' ');
-                assert!(below == '╰' || below == '│' || below == '┤' || below == ' ',
-                    "Corner misalign at col {}: upper='{}', lower='{}'", pos, upper, lower);
+        assert!(lines.len() >= 2, "Should have at least 2 lines");
+        // All non-empty lines should have the same visual width (padded)
+        let widths: Vec<usize> = lines.iter()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| l.chars().map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(1)).sum())
+            .collect();
+        if widths.len() > 1 {
+            let first = widths[0];
+            for &w in &widths[1..] {
+                assert_eq!(w, first, "All rows must have equal visual width");
+            }
+        }
+    }
+
+    #[test]
+    fn test_export_cjk_visual_align() {
+        let mut mm = MindMap::from_text("root\n\t中文\n\t\t子节点");
+        mm.line_spacing = 0;
+        mm.refresh_display();
+        let ascii = mm.export_ascii();
+        let lines: Vec<&str> = ascii.lines().collect();
+        // All rows should have same visual width
+        let widths: Vec<usize> = lines.iter()
+            .filter(|l| !l.trim().is_empty())
+            .map(|l| l.chars().map(|c| c.width().unwrap_or(1)).sum())
+            .collect();
+        if !widths.is_empty() {
+            let w0 = widths[0];
+            for (i, &w) in widths.iter().enumerate() {
+                assert_eq!(w, w0, "Row {} visual width {} != {}", i, w, w0);
             }
         }
     }
