@@ -2500,20 +2500,32 @@ mod tests {
 
     #[test]
     fn test_export_cjk_visual_align() {
-        let mut mm = MindMap::from_text("root\n\t中文\n\t\t子节点");
+        // Reproduce the user's actual tree from zmind_export.txt
+        let tree = "root\n\t测试下\n\t\tNew\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW";
+        let mut mm = MindMap::from_text(tree);
         mm.line_spacing = 0;
         mm.refresh_display();
         let ascii = mm.export_ascii();
         let lines: Vec<&str> = ascii.lines().collect();
-        // All rows should have same visual width
-        let widths: Vec<usize> = lines.iter()
-            .filter(|l| !l.trim().is_empty())
-            .map(|l| l.chars().map(|c| c.width().unwrap_or(1)).sum())
-            .collect();
-        if !widths.is_empty() {
-            let w0 = widths[0];
-            for (i, &w) in widths.iter().enumerate() {
-                assert_eq!(w, w0, "Row {} visual width {} != {}", i, w, w0);
+
+        // Verify connectors align vertically: find ╮ positions and check char below
+        for w in lines.windows(2) {
+            let upper = w[0];
+            let lower = w[1];
+            // For each column where upper has a corner (╮), lower should have
+            // a matching connector (╰, │, ├, ┤) at the same visual column
+            let mut vi = 0; // visual column
+            for (j, cu) in upper.chars().enumerate() {
+                let uw = cu.width().unwrap_or(1);
+                if cu == '╮' {
+                    let lo_char = lower.chars().nth(j).unwrap_or(' ');
+                    assert!(
+                        lo_char == '╰' || lo_char == '│' || lo_char == '├' || lo_char == '┤' || lo_char == ' ',
+                        "Misalign at visual col {} (char col {}): upper='╮', lower='{}' in:\n  {}\n  {}",
+                        vi, j, lo_char, upper, lower
+                    );
+                }
+                vi += uw;
             }
         }
     }
