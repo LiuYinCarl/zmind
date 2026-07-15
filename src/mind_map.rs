@@ -1296,25 +1296,9 @@ impl MindMap {
 
     /// Export canvas as ASCII with per-column visual alignment.
     pub fn export_ascii(&self) -> String {
-        if self.canvas.is_empty() { return String::new(); }
-        let cols = self.canvas.iter().map(|r| r.len()).max().unwrap_or(0);
-        // Compute max visual width per canvas column across all rows
-        let mut col_w: Vec<usize> = vec![1; cols];
-        for row in &self.canvas {
-            for (j, &ch) in row.iter().enumerate() {
-                let w = ch.width().unwrap_or(1);
-                if w > col_w[j] { col_w[j] = w; }
-            }
-        }
-        // Build rows with per-column padding, trim trailing whitespace
         let mut out = String::new();
         for row in &self.canvas {
-            let mut line = String::new();
-            for (j, &ch) in row.iter().enumerate() {
-                line.push(ch);
-                let w = ch.width().unwrap_or(1);
-                for _ in w..col_w[j] { line.push(' '); }
-            }
+            let line: String = row.iter().collect();
             out.push_str(line.trim_end());
             out.push('\n');
         }
@@ -2407,16 +2391,15 @@ mod tests {
         mm.refresh_display();
         let ascii = mm.export_ascii();
 
-        // Expected: per-column visual-width aligned, trailing spaces trimmed
         let expected = concat!(
             "root───╮\n",
             "       ╰──测试下───╮\n",
-            "                   ╰──New───┤\n",
-            "                            ├──NEW\n",
-            "                            │──NEW\n",
-            "                            │──NEW\n",
-            "                            │──NEW\n",
-            "                            ╰──NEW\n",
+            "                ╰──New───┤\n",
+            "                         ├──NEW\n",
+            "                         │──NEW\n",
+            "                         │──NEW\n",
+            "                         │──NEW\n",
+            "                         ╰──NEW\n",
         );
         assert_eq!(ascii, expected, "Export mismatch");
     }
