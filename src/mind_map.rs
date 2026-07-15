@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use unicode_width::UnicodeWidthChar;
+
 /// A single node in the mind map tree.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Node {
@@ -1259,9 +1261,9 @@ impl MindMap {
             .map(|l| unicode_width::UnicodeWidthStr::width(l.as_str()))
             .max()
             .unwrap_or(2);
-        // w_canvas = char count (no padding), w_layout = display width (for child offset)
-        let w_canvas = display_lines.iter().map(|l| l.chars().count()).max().unwrap_or(1).max(1);
-        let w_layout = display_w;
+        // w = char count (no padding), display_w = display width (for child offset)
+        let w = display_lines.iter().map(|l| l.chars().count()).max().unwrap_or(1).max(1);
+        let display_w = display_w;
 
         // ── Compute X: root at 0, children at parent's right edge + gap ──
         let x = if depth == 0 { 0 } else { parent_rx + gap };
@@ -1270,7 +1272,7 @@ impl MindMap {
         let own_h = num_lines + spacing;
 
         // ── Recurse to children (start after parent's own lines) ──
-        let my_rx = x + w_layout;
+        let my_rx = x + display_w;
         let children_base = base_y + own_h;
         let mut children_heights = 0usize;
         if !node.collapsed {
@@ -1288,7 +1290,7 @@ impl MindMap {
         let yo = 0;
 
         self.layouts.insert(id, NodeLayout {
-            id, x, y: base_y + yo, w: w_canvas, h: total_h, depth, yo, lines: num_lines,
+            id, x, y: base_y + yo, w: w, h: total_h, depth, yo, lines: num_lines,
         });
 
         total_h
@@ -1296,9 +1298,23 @@ impl MindMap {
 
     /// Export canvas as ASCII with per-column visual alignment.
     pub fn export_ascii(&self) -> String {
+        if self.canvas.is_empty() { return String::new(); }
+        let cols = self.canvas.iter().map(|r| r.len()).max().unwrap_or(0);
+        let mut col_w: Vec<usize> = vec![1; cols];
+        for row in &self.canvas {
+            for (j, &ch) in row.iter().enumerate() {
+                let w = ch.width().unwrap_or(1);
+                if w > col_w[j] { col_w[j] = w; }
+            }
+        }
         let mut out = String::new();
         for row in &self.canvas {
-            let line: String = row.iter().collect();
+            let mut line = String::new();
+            for (j, &ch) in row.iter().enumerate() {
+                line.push(ch);
+                let w = ch.width().unwrap_or(1);
+                for _ in w..col_w[j] { line.push(' '); }
+            }
             out.push_str(line.trim_end());
             out.push('\n');
         }
@@ -2392,12 +2408,12 @@ mod tests {
         let expected = concat!(
             "root───╮\n",
             "       ╰──测试下──────╮\n",
-            "                   ╰──New───┤\n",
-            "                            ├──NEW\n",
-            "                            │──NEW\n",
-            "                            │──NEW\n",
-            "                            │──NEW\n",
-            "                            ╰──NEW\n",
+            "                      ╰──New───┤\n",
+            "                               ├──NEW\n",
+            "                               │──NEW\n",
+            "                               │──NEW\n",
+            "                               │──NEW\n",
+            "                               ╰──NEW\n",
         );
         assert_eq!(ascii, expected, "Export mismatch");
     }
