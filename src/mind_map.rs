@@ -1294,32 +1294,30 @@ impl MindMap {
         total_h
     }
 
-    /// Export current canvas as ASCII art with proper visual alignment.
+    /// Export canvas as ASCII with per-column visual alignment.
     pub fn export_ascii(&self) -> String {
-        // Compute the max visual width across all rows
-        let mut max_vis = 0;
-        let mut row_vis: Vec<usize> = Vec::new();
-        let mut row_texts: Vec<String> = Vec::new();
+        if self.canvas.is_empty() { return String::new(); }
+        let cols = self.canvas.iter().map(|r| r.len()).max().unwrap_or(0);
+
+        // Step 1: compute max visual width for each canvas column across all rows
+        let mut col_widths: Vec<usize> = vec![1; cols];
         for row in &self.canvas {
-            let line: String = row.iter().collect();
-            let trimmed = line.trim_end().to_string();
-            let vis_w: usize = trimmed.chars().map(|c| c.width().unwrap_or(1)).sum();
-            max_vis = max_vis.max(vis_w);
-            row_vis.push(vis_w);
-            row_texts.push(trimmed);
-        }
-        // Build output with padding
-        let mut out = String::new();
-        for (i, text) in row_texts.iter().enumerate() {
-            if text.is_empty() {
-                out.push('\n');
-                continue;
+            for (j, &ch) in row.iter().enumerate() {
+                let w = ch.width().unwrap_or(1);
+                if w > col_widths[j] { col_widths[j] = w; }
             }
-            out.push_str(text);
-            // Pad to max visual width
-            let padding = max_vis.saturating_sub(row_vis[i]);
-            for _ in 0..padding {
-                out.push(' ');
+        }
+
+        // Step 2: build output rows with padding
+        let mut out = String::new();
+        for row in &self.canvas {
+            for (j, &ch) in row.iter().enumerate() {
+                out.push(ch);
+                let w = ch.width().unwrap_or(1);
+                let target = col_widths[j];
+                for _ in w..target {
+                    out.push(' ');
+                }
             }
             out.push('\n');
         }
