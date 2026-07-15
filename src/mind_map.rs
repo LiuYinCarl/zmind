@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use unicode_width::UnicodeWidthChar;
-
 /// A single node in the mind map tree.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Node {
