@@ -40,9 +40,7 @@ pub struct NodeLayout {
     pub w: usize,
     pub h: usize,
     pub depth: usize,
-    /// Y offset of text within the node's bounding box (centering)
     pub yo: usize,
-    /// Number of lines for multi-line wrapping
     pub lines: usize,
 }
 
@@ -1261,7 +1259,6 @@ impl MindMap {
             .map(|l| unicode_width::UnicodeWidthStr::width(l.as_str()))
             .max()
             .unwrap_or(2);
-        // w = number of chars (canvas positions)
         let w = display_lines.iter().map(|l| l.chars().count()).max().unwrap_or(1).max(1);
 
         // ── Compute X: root at 0, children at parent's right edge + gap ──
@@ -1295,21 +1292,11 @@ impl MindMap {
         total_h
     }
 
-    /// Export current canvas as ASCII art text, with padding for wide chars.
+    /// Export current canvas as ASCII art text.
     pub fn export_ascii(&self) -> String {
         let mut out = String::new();
         for row in &self.canvas {
-            let mut line = String::new();
-            for &ch in row {
-                line.push(ch);
-                // If this char is wide (CJK, etc.), add a padding space
-                let w = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1);
-                if w > 1 {
-                    for _ in 1..w {
-                        line.push(' ');
-                    }
-                }
-            }
+            let line: String = row.iter().collect();
             let trimmed = line.trim_end();
             if !trimmed.is_empty() {
                 out.push_str(trimmed);
