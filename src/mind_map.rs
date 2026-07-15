@@ -2457,4 +2457,21 @@ mod tests {
         mm2.refresh_display();
         let _ = find_node_by_title(&mm2, "中文\n测试");
     }
+
+    #[test]
+    fn test_export_ascii_alignment() {
+        let mut mm = MindMap::from_text("root\n\t测试\n\t\t子节点");
+        mm.refresh_display();
+        let ascii = mm.export_ascii();
+        let lines: Vec<&str> = ascii.lines().collect();
+        for w in lines.windows(2) {
+            let upper = w[0];
+            let lower = w[1];
+            if let Some(pos) = upper.find('╮') {
+                let below = lower.chars().nth(pos).unwrap_or(' ');
+                assert!(below == '╰' || below == '│' || below == '┤' || below == ' ',
+                    "Corner misalign at col {}: upper='{}', lower='{}'", pos, upper, lower);
+            }
+        }
+    }
 }
