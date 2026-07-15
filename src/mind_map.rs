@@ -2483,18 +2483,12 @@ mod tests {
         mm2.line_spacing = 0;
         mm2.refresh_display();
         let ascii = mm2.export_ascii();
-        let lines: Vec<&str> = ascii.lines().collect();
-        assert!(lines.len() >= 2);
-        // All non-empty lines should have the same visual width (padded)
-        let widths: Vec<usize> = lines.iter()
-            .filter(|l| !l.trim().is_empty())
-            .map(|l| l.chars().map(|c| c.width().unwrap_or(1)).sum())
-            .collect();
-        if widths.len() > 1 {
-            for &w in &widths[1..] {
-                assert_eq!(w, widths[0]);
-            }
-        }
+        let expected = concat!(
+            "root───┤\n",
+            "       ├──A\n",
+            "       ╰──B\n",
+        );
+        assert_eq!(ascii, expected);
     }
 
     #[test]
