@@ -2222,175 +2222,81 @@ mod tests {
         assert!(count_after < count_before, "Collapsing should reduce visible nodes");
     }
 
-    // ═══ Canvas Rendering Tests ════════════════════════════════
+    // ═══ Golden-File Export Tests ═══════════════════════════════
 
-    /// Build a simple mind map and verify canvas content.
-    fn render_map(input: &str) -> MindMap {
-        let mut mm = MindMap::from_text(input);
-        mm.calculate_layout(40, 0);
-        mm.build_canvas();
-        mm
-    }
-
-    /// Get a row from the canvas as a String, trimmed of trailing spaces.
-    fn canvas_row(mm: &MindMap, row: usize) -> String {
-        if row >= mm.canvas.len() {
-            return String::new();
-        }
-        mm.canvas[row].iter().collect::<String>().trim_end().to_string()
-    }
-
-    #[test]
-    fn test_canvas_root_visible() {
-        let mm = render_map("root\n\tA\n\tB");
-        let row0 = canvas_row(&mm, 0);
-        assert!(row0.contains("root"), "Root should be visible at row 0: {}", row0);
-    }
-
-    #[test]
-    fn test_canvas_children_visible() {
-        let mm = render_map("root\n\tAlpha\n\tBeta");
-        let full: String = mm.canvas.iter().map(|r| r.iter().collect::<String>()).collect::<Vec<_>>().join("\n");
-        assert!(full.contains("Alpha"), "Child Alpha should be visible");
-        assert!(full.contains("Beta"), "Child Beta should be visible");
-    }
-
-    #[test]
-    fn test_canvas_has_connectors() {
-        let mm = render_map("root\n\tChild");
-        let full: String = mm.canvas.iter().map(|r| r.iter().collect::<String>()).collect::<Vec<_>>().join("\n");
-        assert!(full.contains('─'), "Should have horizontal connector '─'");
-        // Single child at same Y may not have vertical bar — that's fine
-    }
-
-    #[test]
-    fn test_connector_integrity_single_child_same_row() {
-        // spacing=0: parent at y=0, child at y=1 (different rows!)
-        // Parent horizontal + corner at row 0, child horizontal at row 1
-        let mut mm = MindMap::from_text("root\n\tA");
+    /// JSON roundtrip + export, compare against expected string.
+    fn assert_export(tree: &str, expected: &str) {
+        let mm0 = MindMap::from_text(tree);
+        let json = serde_json::to_string(&mm0).unwrap();
+        let mut mm: MindMap = serde_json::from_str(&json).unwrap();
         mm.line_spacing = 0;
         mm.refresh_display();
-        // Parent row: root text + horizontal + corner
-        let row0 = &mm.canvas[0];
-        assert_eq!(row0[0], 'r');
-        assert!(row0.iter().any(|&c| c == '╮' || c == '╯' || c == '─'),
-            "Parent row should have connector");
-        // Child row: corner + horizontal + text
-        let child_y = mm.layouts.get(&3).unwrap().y;
-        assert!(child_y > 0, "Child should be below parent");
+        assert_eq!(mm.export_ascii(), expected);
     }
 
     #[test]
-    fn test_connector_integrity_single_child_diff_row() {
-        // spacing=1 → parent at y=0, child at y=2, connector bends
-        let mut mm = MindMap::from_text("root\n\tA");
-        mm.line_spacing = 1;
-        mm.refresh_display();
-        // Parent row should have horizontal line + corner
-        let row0 = &mm.canvas[0];
-        assert_eq!(row0[0], 'r');
-        // Find where corner char is
-        let has_corner = row0.iter().any(|&c| c == '╮' || c == '╯');
-        assert!(has_corner, "Parent row should have corner char");
-        // Child row should have corner + horizontal + text
-        let child_y = mm.layouts.get(&3).unwrap().y;
-        let child_row = &mm.canvas[child_y];
-        let has_child_corner = child_row.iter().any(|&c| c == '╭' || c == '╰');
-        assert!(has_child_corner, "Child row should have corner char");
-        // Between parent and child: bar should exist
-        let bar_x = mm.layouts.get(&3).unwrap().x - 3;
-        for y in 1..child_y {
-            assert!(mm.canvas[y][bar_x] == '│' || mm.canvas[y][bar_x] == '╭' || mm.canvas[y][bar_x] == '╰',
-                "Row {} bar_x: expected bar char, got '{}'", y, mm.canvas[y][bar_x]);
-        }
+    fn test_export_simple() {
+        assert_export("root\n\tA\n\tB", concat!(
+            "root───┤\n",
+            "       ├──A\n",
+            "       ╰──B\n",
+        ));
     }
 
     #[test]
-    fn test_connector_integrity_multi_child() {
-        let mut mm = MindMap::from_text("root\n\tA\n\tB\n\tC");
+    fn test_export_single_child() {
+        assert_export("root\n\tChild", concat!(
+            "root───╮\n",
+            "       ╰──Child\n",
+        ));
+    }
+
+    #[test]
+    fn test_export_multi_branch() {
+        assert_export("root\n\tA\n\tB\n\tC", concat!(
+            "root───┤\n",
+            "       ├──A\n",
+            "       │──B\n",
+            "       ╰──C\n",
+        ));
+    }
+
+    #[test]
+    fn test_export_nested() {
+        assert_export("root\n\tA\n\t\tA1\n\tB", concat!(
+            "root───┤\n",
+            "       ├──A───╮\n",
+            "       │      ╰──A1\n",
+            "       ╰──B\n",
+        ));
+    }
+
+    #[test]
+    fn test_export_collapsed() {
+        let mm0 = MindMap::from_text("root\n\tParent\n\t\tHidden");
+        let json = serde_json::to_string(&mm0).unwrap();
+        let mut mm: MindMap = serde_json::from_str(&json).unwrap();
         mm.line_spacing = 0;
-        mm.refresh_display();
-        let bar_x = mm.layouts.get(&3).unwrap().x - 3;
-        let parent_row = &mm.canvas[0];
-        let parent_mid_y = 0usize;
-        let first_id = 3usize;
-        let first_y = mm.layouts.get(&first_id).unwrap().y;
-        let last_id = mm.nodes.iter().find(|(_, n)| n.title == "C").map(|(id,_)|*id).unwrap();
-        let last_y = mm.layouts.get(&last_id).unwrap().y;
-        eprintln!("parent_mid={} first_y={} last_y={} bar_x={}", parent_mid_y, first_y, last_y, bar_x);
-        eprintln!("Row 0 at bar_x: '{}' ({})", parent_row[bar_x], parent_row[bar_x] as u32);
-        for y in 0..=3 {
-            eprintln!("Row {}: '{}'", y, mm.canvas[y].iter().collect::<String>().trim_end());
-        }
-        assert_eq!(parent_row[bar_x], '┤', "Parent row bar should be '┤'");
-        assert_eq!(mm.canvas[first_y][bar_x], '├', "First child bar should be '├'");
-        assert_eq!(mm.canvas[last_y][bar_x], '╰', "Last child bar should be '╰'");
-        for &cid in &[3, 4, 5] {
-            let cl = &mm.layouts[&cid];
-            let child_row = &mm.canvas[cl.y];
-            for x in (bar_x + 1)..cl.x {
-                assert_eq!(child_row[x], '─', "Child {} row {} col {}: expected '─' got '{}'", cid, cl.y, x, child_row[x]);
-            }
-        }
-    }
-
-    #[test]
-    fn test_connector_no_space_at_bar() {
-        // All cases: the bar_x column should never be space at any row that has a connector
-        let mut mm = MindMap::from_text("root\n\tA\n\tB");
-        mm.line_spacing = 0;
-        mm.refresh_display();
-        let bar_x = mm.layouts.get(&3).unwrap().x - 3;
-        let bar_top = 0usize;
-        let bar_bottom = mm.layouts.get(&4).unwrap().y;
-        for y in bar_top..=bar_bottom {
-            assert_ne!(mm.canvas[y][bar_x], ' ',
-                "Bar at row {} col {} should not be space", y, bar_x);
-        }
-    }
-
-    #[test]
-    fn test_canvas_connector_no_gaps() {
-        let mut mm = MindMap::from_text("root\n\tA\n\tB");
-        mm.calculate_layout(40, 0);
-        mm.build_canvas();
-        let row0: String = mm.canvas[0].iter().collect();
-        let start = row0.find("root").unwrap() + 4;
-        let segment: String = mm.canvas[0][start..].iter().take(6).collect();
-        // Bar should extend from parent row — no gaps
-        assert!(!segment.starts_with(' '),
-            "Connector should start right after text, got: '{}'", segment);
-    }
-
-    #[test]
-    fn test_canvas_multi_branch_connectors() {
-        // Use spacing=1 so children are clearly separated
-        let mut mm = MindMap::from_text("root\n\tA\n\tB\n\tC");
-        mm.line_spacing = 1;
-        mm.refresh_display();
-        let full: String = mm.canvas.iter().map(|r| r.iter().collect::<String>()).collect::<Vec<_>>().join("\n");
-        // Multi-branch should have corner chars
-        assert!(full.contains('╭') || full.contains('╰'), "Should have corner chars for multi-branch");
-    }
-
-    #[test]
-    fn test_canvas_collapsed_shows_plus() {
-        let mut mm = MindMap::from_text("root\n\tParent\n\t\tHidden");
         let pid = find_node_by_title(&mm, "Parent");
         mm.active_node = pid;
         mm.toggle_node();
         mm.refresh_display();
-        let full: String = mm.canvas.iter().map(|r| r.iter().collect::<String>()).collect::<Vec<_>>().join("\n");
-        assert!(full.contains("[+]"), "Collapsed parent should show [+]: {}", full);
+        assert_eq!(mm.export_ascii(), concat!(
+            "root───╮\n",
+            "       ╰──Parent[+]\n",
+        ));
     }
 
     #[test]
-    fn test_canvas_multiline_node() {
-        let mm = render_map("root\n\tLine1\\nLine2");
-        let full: String = mm.canvas.iter().map(|r| r.iter().collect::<String>()).collect::<Vec<_>>().join("\n");
-        assert!(full.contains("Line1"), "First line should be visible");
-        assert!(full.contains("Line2"), "Second line should be visible");
+    fn test_export_multiline() {
+        assert_export("root\n\tLine1\\nLine2", concat!(
+            "root───╮\n",
+            "       │  Line1\n",
+            "       ╰──Line2\n",
+        ));
     }
+
+    // ═══ Engine Tests ══════════════════════════════════════════
 
     #[test]
     fn test_canvas_narrow_width_wraps() {
