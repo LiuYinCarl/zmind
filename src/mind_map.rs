@@ -2478,54 +2478,52 @@ mod tests {
 
     #[test]
     fn test_export_ascii_alignment() {
-        // Create a simple tree and verify export alignment
         let mut mm = MindMap::from_text("root\n\tA\n\tB");
         mm.line_spacing = 0;
         mm.refresh_display();
-        let ascii = mm.export_ascii();
+        let json = serde_json::to_string(&mm).unwrap();
+        let mut mm2: MindMap = serde_json::from_str(&json).unwrap();
+        mm2.line_spacing = 0;
+        mm2.refresh_display();
+        let ascii = mm2.export_ascii();
         let lines: Vec<&str> = ascii.lines().collect();
-        assert!(lines.len() >= 2, "Should have at least 2 lines");
+        assert!(lines.len() >= 2);
         // All non-empty lines should have the same visual width (padded)
         let widths: Vec<usize> = lines.iter()
             .filter(|l| !l.trim().is_empty())
-            .map(|l| l.chars().map(|c| unicode_width::UnicodeWidthChar::width(c).unwrap_or(1)).sum())
+            .map(|l| l.chars().map(|c| c.width().unwrap_or(1)).sum())
             .collect();
         if widths.len() > 1 {
-            let first = widths[0];
             for &w in &widths[1..] {
-                assert_eq!(w, first, "All rows must have equal visual width");
+                assert_eq!(w, widths[0]);
             }
         }
     }
 
     #[test]
     fn test_export_cjk_visual_align() {
-        // Reproduce the user's actual tree from zmind_export.txt
+        // Build tree via from_text, then roundtrip through JSON (matching real data flow)
         let tree = "root\n\t测试下\n\t\tNew\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW";
-        let mut mm = MindMap::from_text(tree);
+        let mm0 = MindMap::from_text(tree);
+        let json = serde_json::to_string(&mm0).unwrap();
+        let mut mm: MindMap = serde_json::from_str(&json).unwrap();
         mm.line_spacing = 0;
         mm.refresh_display();
         let ascii = mm.export_ascii();
         let lines: Vec<&str> = ascii.lines().collect();
 
-        // Verify connectors align vertically: find ╮ positions and check char below
         for w in lines.windows(2) {
             let upper = w[0];
             let lower = w[1];
-            // For each column where upper has a corner (╮), lower should have
-            // a matching connector (╰, │, ├, ┤) at the same visual column
-            let mut vi = 0; // visual column
             for (j, cu) in upper.chars().enumerate() {
-                let uw = cu.width().unwrap_or(1);
                 if cu == '╮' {
                     let lo_char = lower.chars().nth(j).unwrap_or(' ');
                     assert!(
                         lo_char == '╰' || lo_char == '│' || lo_char == '├' || lo_char == '┤' || lo_char == ' ',
-                        "Misalign at visual col {} (char col {}): upper='╮', lower='{}' in:\n  {}\n  {}",
-                        vi, j, lo_char, upper, lower
+                        "Misalign at char col {}: upper='╮', lower='{}' in:\n  {}\n  {}",
+                        j, lo_char, upper, lower
                     );
                 }
-                vi += uw;
             }
         }
     }
