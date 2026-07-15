@@ -1257,12 +1257,11 @@ impl MindMap {
         let width_limit = if is_at_end { (max_w as f64 * 1.3) as usize } else { max_w };
         let display_lines = Self::lines_for_display(&node.title, width_limit);
         let num_lines = display_lines.len().max(1);
-        let _display_w = display_lines.iter()
+        let display_w = display_lines.iter()
             .map(|l| unicode_width::UnicodeWidthStr::width(l.as_str()))
             .max()
             .unwrap_or(2);
-        // w = number of chars in the longest line (canvas positions), not display width
-        let w = display_lines.iter().map(|l| l.chars().count()).max().unwrap_or(1).max(1);
+        let w = display_w;
 
         // ── Compute X: root at 0, children at parent's right edge + gap ──
         let x = if depth == 0 { 0 } else { parent_rx + gap };
@@ -1357,9 +1356,17 @@ impl MindMap {
             return;
         }
         let chars: Vec<char> = text.chars().collect();
+        let text_w = unicode_width::UnicodeWidthStr::width(text);
         let max_w = self.canvas[y].len().saturating_sub(x);
+        // Draw characters
         for (i, &ch) in chars.iter().enumerate().take(max_w) {
             self.canvas[y][x + i] = ch;
+        }
+        // Pad remaining display width with spaces so each canvas column = 1 visual column
+        let pad_start = chars.len();
+        let pad_end = text_w.min(max_w);
+        for i in pad_start..pad_end {
+            self.canvas[y][x + i] = ' ';
         }
     }
 
@@ -1386,7 +1393,7 @@ impl MindMap {
 
         for (_id, title, layout) in node_data {
             // Split by newlines, then word-wrap each
-            let display_lines = Self::lines_for_display(&title, layout.w.saturating_sub(1));
+            let display_lines = Self::lines_for_display(&title, layout.w);
             for (li, line) in display_lines.iter().enumerate() {
                 let cy = layout.y + li;
                 if cy < self.canvas.len() {
