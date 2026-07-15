@@ -1259,7 +1259,9 @@ impl MindMap {
             .map(|l| unicode_width::UnicodeWidthStr::width(l.as_str()))
             .max()
             .unwrap_or(2);
-        let w = display_w;
+        // w_canvas = char count (no padding), w_layout = display width (for child offset)
+        let w_canvas = display_lines.iter().map(|l| l.chars().count()).max().unwrap_or(1).max(1);
+        let w_layout = display_w;
 
         // ── Compute X: root at 0, children at parent's right edge + gap ──
         let x = if depth == 0 { 0 } else { parent_rx + gap };
@@ -1268,7 +1270,7 @@ impl MindMap {
         let own_h = num_lines + spacing;
 
         // ── Recurse to children (start after parent's own lines) ──
-        let my_rx = x + w;
+        let my_rx = x + w_layout;
         let children_base = base_y + own_h;
         let mut children_heights = 0usize;
         if !node.collapsed {
@@ -1286,7 +1288,7 @@ impl MindMap {
         let yo = 0;
 
         self.layouts.insert(id, NodeLayout {
-            id, x, y: base_y + yo, w, h: total_h, depth, yo, lines: num_lines,
+            id, x, y: base_y + yo, w: w_canvas, h: total_h, depth, yo, lines: num_lines,
         });
 
         total_h
@@ -1352,14 +1354,9 @@ impl MindMap {
     fn draw_text_at(&mut self, x: usize, y: usize, text: &str) {
         if y >= self.canvas.len() { return; }
         let chars: Vec<char> = text.chars().collect();
-        let text_w = unicode_width::UnicodeWidthStr::width(text);
         let max_w = self.canvas[y].len().saturating_sub(x);
         for (i, &ch) in chars.iter().enumerate().take(max_w) {
             self.canvas[y][x + i] = ch;
-        }
-        // Fill remaining visual width with spaces so each canvas col = 1 visual col
-        for i in chars.len()..text_w.min(max_w) {
-            self.canvas[y][x + i] = ' ';
         }
     }
 
@@ -2394,7 +2391,7 @@ mod tests {
 
         let expected = concat!(
             "root───╮\n",
-            "       ╰──测试下   ───╮\n",
+            "       ╰──测试下──────╮\n",
             "                   ╰──New───┤\n",
             "                            ├──NEW\n",
             "                            │──NEW\n",
