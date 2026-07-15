@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use unicode_width::UnicodeWidthChar;
+
 /// A single node in the mind map tree.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Node {
@@ -1292,14 +1294,32 @@ impl MindMap {
         total_h
     }
 
-    /// Export current canvas as ASCII art text.
+    /// Export current canvas as ASCII art with proper visual alignment.
     pub fn export_ascii(&self) -> String {
-        let mut out = String::new();
+        // Compute the max visual width across all rows
+        let mut max_vis = 0;
+        let mut row_vis: Vec<usize> = Vec::new();
+        let mut row_texts: Vec<String> = Vec::new();
         for row in &self.canvas {
             let line: String = row.iter().collect();
-            let trimmed = line.trim_end();
-            if !trimmed.is_empty() {
-                out.push_str(trimmed);
+            let trimmed = line.trim_end().to_string();
+            let vis_w: usize = trimmed.chars().map(|c| c.width().unwrap_or(1)).sum();
+            max_vis = max_vis.max(vis_w);
+            row_vis.push(vis_w);
+            row_texts.push(trimmed);
+        }
+        // Build output with padding
+        let mut out = String::new();
+        for (i, text) in row_texts.iter().enumerate() {
+            if text.is_empty() {
+                out.push('\n');
+                continue;
+            }
+            out.push_str(text);
+            // Pad to max visual width
+            let padding = max_vis.saturating_sub(row_vis[i]);
+            for _ in 0..padding {
+                out.push(' ');
             }
             out.push('\n');
         }
