@@ -274,7 +274,10 @@ impl App {
                             Char('e') => {
                                 if key.modifiers.contains(KeyModifiers::CONTROL) {
                                     let ascii = self.mind_map.export_ascii();
-                                    let _ = std::fs::write("zmind_export.txt", &ascii);
+                                    match std::fs::write("zmind_export.txt", &ascii) {
+                                        Ok(()) => self.show_message("Exported to zmind_export.txt"),
+                                        Err(e) => self.show_message(&format!("Export error: {}", e)),
+                                    }
                                 } else {
                                     input = input.clone().with_value(self.get_active_title());
                                     self.previous_view_mode = ViewMode::ViewMindMap;
@@ -462,6 +465,12 @@ impl App {
             ViewMode::Message => View::show_message_modal(f, area, &self.message),
             _ => {}
         }
+    }
+
+    fn show_message(&mut self, msg: &str) {
+        self.message = msg.to_string();
+        self.previous_view_mode = self.view_mode.clone();
+        self.view_mode = ViewMode::Message;
     }
 
     fn get_active_title(&self) -> String {
