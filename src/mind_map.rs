@@ -1298,27 +1298,24 @@ impl MindMap {
     pub fn export_ascii(&self) -> String {
         if self.canvas.is_empty() { return String::new(); }
         let cols = self.canvas.iter().map(|r| r.len()).max().unwrap_or(0);
-
-        // Step 1: compute max visual width for each canvas column across all rows
-        let mut col_widths: Vec<usize> = vec![1; cols];
+        // Compute max visual width per canvas column across all rows
+        let mut col_w: Vec<usize> = vec![1; cols];
         for row in &self.canvas {
             for (j, &ch) in row.iter().enumerate() {
                 let w = ch.width().unwrap_or(1);
-                if w > col_widths[j] { col_widths[j] = w; }
+                if w > col_w[j] { col_w[j] = w; }
             }
         }
-
-        // Step 2: build output rows with padding
+        // Build rows with per-column padding, trim trailing whitespace
         let mut out = String::new();
         for row in &self.canvas {
+            let mut line = String::new();
             for (j, &ch) in row.iter().enumerate() {
-                out.push(ch);
+                line.push(ch);
                 let w = ch.width().unwrap_or(1);
-                let target = col_widths[j];
-                for _ in w..target {
-                    out.push(' ');
-                }
+                for _ in w..col_w[j] { line.push(' '); }
             }
+            out.push_str(line.trim_end());
             out.push('\n');
         }
         out
@@ -2502,7 +2499,6 @@ mod tests {
 
     #[test]
     fn test_export_cjk_visual_align() {
-        // Build tree via from_text, then roundtrip through JSON (matching real data flow)
         let tree = "root\n\t测试下\n\t\tNew\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW\n\t\t\tNEW";
         let mm0 = MindMap::from_text(tree);
         let json = serde_json::to_string(&mm0).unwrap();
@@ -2510,21 +2506,18 @@ mod tests {
         mm.line_spacing = 0;
         mm.refresh_display();
         let ascii = mm.export_ascii();
-        let lines: Vec<&str> = ascii.lines().collect();
 
-        for w in lines.windows(2) {
-            let upper = w[0];
-            let lower = w[1];
-            for (j, cu) in upper.chars().enumerate() {
-                if cu == '╮' {
-                    let lo_char = lower.chars().nth(j).unwrap_or(' ');
-                    assert!(
-                        lo_char == '╰' || lo_char == '│' || lo_char == '├' || lo_char == '┤' || lo_char == ' ',
-                        "Misalign at char col {}: upper='╮', lower='{}' in:\n  {}\n  {}",
-                        j, lo_char, upper, lower
-                    );
-                }
-            }
-        }
+        // Expected: per-column visual-width aligned, trailing spaces trimmed
+        let expected = concat!(
+            "root───╮\n",
+            "       ╰──测试下───╮\n",
+            "                   ╰──New───┤\n",
+            "                            ├──NEW\n",
+            "                            │──NEW\n",
+            "                            │──NEW\n",
+            "                            │──NEW\n",
+            "                            ╰──NEW\n",
+        );
+        assert_eq!(ascii, expected, "Export mismatch");
     }
 }
