@@ -150,6 +150,7 @@ impl App {
                                         self.mind_map = self.maps[idx].clone();
                                         self.active_index = idx;
                                         self.prev_active = self.mind_map.active_node;
+                                        self.sync_config();
                                         self.view_mode = ViewMode::ViewMindMap;
                                     }
                                 }
