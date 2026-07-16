@@ -128,7 +128,9 @@ impl App {
         let mut input = Input::default();
 
         loop {
-            terminal.draw(|f| { self.render(f, f.size(), &input); })?;
+            terminal.draw(|f| {
+                self.render(f, f.size(), &input);
+            })?;
 
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
@@ -155,7 +157,8 @@ impl App {
                             Char('r') => {
                                 if let Some(idx) = self.map_list_state.selected() {
                                     if idx < self.maps.len() {
-                                        input = input.clone().with_value(self.maps[idx].name.clone());
+                                        input =
+                                            input.clone().with_value(self.maps[idx].name.clone());
                                         self.previous_view_mode = ViewMode::MapList;
                                         self.view_mode = ViewMode::RenameMap;
                                     }
@@ -186,7 +189,11 @@ impl App {
                                 let len = self.maps.len();
                                 if len > 0 {
                                     let i = self.map_list_state.selected().unwrap_or(0);
-                                    self.map_list_state.select(Some(if i == 0 { len - 1 } else { i - 1 }));
+                                    self.map_list_state.select(Some(if i == 0 {
+                                        len - 1
+                                    } else {
+                                        i - 1
+                                    }));
                                 }
                             }
                             _ => {}
@@ -215,159 +222,361 @@ impl App {
                                     }
                                 }
                             }
-                            Esc => { input.reset(); self.view_mode = ViewMode::MapList; }
-                            _ => { input.handle_event(&Event::Key(key)); }
+                            Esc => {
+                                input.reset();
+                                self.view_mode = ViewMode::MapList;
+                            }
+                            _ => {
+                                input.handle_event(&Event::Key(key));
+                            }
                         },
 
                         // ─── Mind Map ─────────────────────────
                         ViewMode::ViewMindMap => {
                             match key.code {
-                            Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.viewport_x = self.viewport_x.saturating_sub(4);
-                            }
-                            Right if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.viewport_x = self.viewport_x.saturating_add(4);
-                                let max_x = self.mind_map.map_width.saturating_sub(10);
-                                if self.viewport_x > max_x { self.viewport_x = max_x; }
-                            }
-                            Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.viewport_y = self.viewport_y.saturating_sub(1);
-                            }
-                            Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                                self.viewport_y = self.viewport_y.saturating_add(1);
-                                let max_y = self.mind_map.map_height.saturating_sub(5);
-                                if self.viewport_y > max_y { self.viewport_y = max_y; }
-                            }
-                            Char('h') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                    self.show_hidden = !self.show_hidden;
-                                    self.sync_config();
-                                } else {
-                                    self.previous_view_mode = ViewMode::ViewMindMap;
-                                    self.view_mode = ViewMode::ViewHelp;
+                                Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                    self.viewport_x = self.viewport_x.saturating_sub(4);
                                 }
-                            }
-                            Left => { self.mind_map.go_left(); }
-                            Char('l') | Right => { self.mind_map.go_right(); }
-                            Char('j') => {
-                                if key.modifiers.contains(KeyModifiers::ALT) { self.mind_map.remove_star(); }
-                                else { self.mind_map.go_down(); }
-                            }
-                            Down => { self.mind_map.go_down(); }
-                            Char('k') => {
-                                if key.modifiers.contains(KeyModifiers::ALT) { self.mind_map.add_star(); }
-                                else { self.mind_map.go_up(); }
-                            }
-                            Up => { self.mind_map.go_up(); }
-                            Char('g') => { self.mind_map.go_to_top(); }
-                            Char('G') => { self.mind_map.go_to_bottom(); }
-                            Char('m') | Char('~') => { self.mind_map.go_to_root(); }
-
-                            Char('c') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) { return Ok(()); }
-                                else { self.center_on_active(); }
-                            }
-                            Char('C') => { self.center_lock = !self.center_lock; if self.center_lock { self.center_on_active(); } }
-                            Char('F') => { self.focus_lock = !self.focus_lock; if self.focus_lock { self.mind_map.focus(); } }
-                            Char('|') => { self.align_levels = !self.align_levels; self.sync_config(); }
-
-                            Char('e') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                    let ascii = self.mind_map.export_ascii();
-                                    match std::fs::write("zmind_export.txt", &ascii) {
-                                        Ok(()) => self.show_message("Exported to zmind_export.txt"),
-                                        Err(e) => self.show_message(&format!("Export error: {}", e)),
+                                Right if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                    self.viewport_x = self.viewport_x.saturating_add(4);
+                                    let max_x = self.mind_map.map_width.saturating_sub(10);
+                                    if self.viewport_x > max_x {
+                                        self.viewport_x = max_x;
                                     }
-                                } else {
+                                }
+                                Up if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                    self.viewport_y = self.viewport_y.saturating_sub(1);
+                                }
+                                Down if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                                    self.viewport_y = self.viewport_y.saturating_add(1);
+                                    let max_y = self.mind_map.map_height.saturating_sub(5);
+                                    if self.viewport_y > max_y {
+                                        self.viewport_y = max_y;
+                                    }
+                                }
+                                Char('h') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        self.show_hidden = !self.show_hidden;
+                                        self.sync_config();
+                                    } else {
+                                        self.previous_view_mode = ViewMode::ViewMindMap;
+                                        self.view_mode = ViewMode::ViewHelp;
+                                    }
+                                }
+                                Left => {
+                                    self.mind_map.go_left();
+                                }
+                                Char('l') | Right => {
+                                    self.mind_map.go_right();
+                                }
+                                Char('j') => {
+                                    if key.modifiers.contains(KeyModifiers::ALT) {
+                                        self.mind_map.remove_star();
+                                        self.sync_maps();
+                                        self.auto_save();
+                                    } else {
+                                        self.mind_map.go_down();
+                                    }
+                                }
+                                Down => {
+                                    self.mind_map.go_down();
+                                }
+                                Char('k') => {
+                                    if key.modifiers.contains(KeyModifiers::ALT) {
+                                        self.mind_map.add_star();
+                                        self.sync_maps();
+                                        self.auto_save();
+                                    } else {
+                                        self.mind_map.go_up();
+                                    }
+                                }
+                                Up => {
+                                    self.mind_map.go_up();
+                                }
+                                Char('g') => {
+                                    self.mind_map.go_to_top();
+                                }
+                                Char('G') => {
+                                    self.mind_map.go_to_bottom();
+                                }
+                                Char('m') | Char('~') => {
+                                    self.mind_map.go_to_root();
+                                }
+
+                                Char('c') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        return Ok(());
+                                    } else {
+                                        self.center_on_active();
+                                    }
+                                }
+                                Char('C') => {
+                                    self.center_lock = !self.center_lock;
+                                    if self.center_lock {
+                                        self.center_on_active();
+                                    }
+                                }
+                                Char('F') => {
+                                    self.focus_lock = !self.focus_lock;
+                                    if self.focus_lock {
+                                        self.mind_map.focus();
+                                    }
+                                }
+                                Char('|') => {
+                                    self.align_levels = !self.align_levels;
+                                    self.sync_config();
+                                }
+
+                                Char('e') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        let ascii = self.mind_map.export_ascii();
+                                        match std::fs::write("zmind_export.txt", &ascii) {
+                                            Ok(()) => {
+                                                self.show_message("Exported to zmind_export.txt")
+                                            }
+                                            Err(e) => {
+                                                self.show_message(&format!("Export error: {}", e))
+                                            }
+                                        }
+                                    } else {
+                                        input = input.clone().with_value(self.get_active_title());
+                                        self.previous_view_mode = ViewMode::ViewMindMap;
+                                        self.view_mode = ViewMode::EditNode;
+                                    }
+                                }
+                                Char('a') => {
                                     input = input.clone().with_value(self.get_active_title());
                                     self.previous_view_mode = ViewMode::ViewMindMap;
                                     self.view_mode = ViewMode::EditNode;
                                 }
-                            }
-                            Char('a') => {
-                                input = input.clone().with_value(self.get_active_title());
-                                self.previous_view_mode = ViewMode::ViewMindMap;
-                                self.view_mode = ViewMode::EditNode;
-                            }
-                            Char('E') | Char('A') => { input.reset(); self.previous_view_mode = ViewMode::ViewMindMap; self.view_mode = ViewMode::EditNode; }
-                            Char('i') | Char('I') => { self.previous_view_mode = ViewMode::ViewMindMap; self.view_mode = ViewMode::ViewNodeDetails; }
-                            Char('o') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                    let _ = std::process::Command::new("xdg-open").arg(&self.get_active_title()).spawn();
-                                } else { self.mind_map.insert_sibling(); self.sync_maps(); self.auto_save(); }
-                            }
-                            Enter => { self.mind_map.insert_sibling(); self.sync_maps(); self.auto_save(); }
-                            Char('O') | Tab => { self.mind_map.insert_child(); self.sync_maps(); self.auto_save(); }
+                                Char('E') | Char('A') => {
+                                    input.reset();
+                                    self.previous_view_mode = ViewMode::ViewMindMap;
+                                    self.view_mode = ViewMode::EditNode;
+                                }
+                                Char('i') | Char('I') => {
+                                    self.previous_view_mode = ViewMode::ViewMindMap;
+                                    self.view_mode = ViewMode::ViewNodeDetails;
+                                }
+                                Char('o') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        let _ = std::process::Command::new("xdg-open")
+                                            .arg(&self.get_active_title())
+                                            .spawn();
+                                    } else {
+                                        self.mind_map.insert_sibling();
+                                        self.sync_maps();
+                                        self.auto_save();
+                                    }
+                                }
+                                Enter => {
+                                    self.mind_map.insert_sibling();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('O') | Tab => {
+                                    self.mind_map.insert_child();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
 
-                            Char('d') => { self.mind_map.cut_node(); self.sync_maps(); self.auto_save(); }
-                            Char('D') => { self.mind_map.cut_children(); self.sync_maps(); self.auto_save(); }
-                            Delete => { self.mind_map.delete_node_no_clipboard(); self.sync_maps(); self.auto_save(); }
-                            Char('y') => { self.mind_map.yank_node(); }
-                            Char('Y') => { self.mind_map.yank_children(); }
-                            Char('p') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) { self.mind_map.append_clipboard_to_title(); }
-                                else { self.mind_map.paste_as_children(); }
-                                self.sync_maps(); self.auto_save();
-                            }
-                            Char('P') => { self.mind_map.paste_as_siblings(); self.sync_maps(); self.auto_save(); }
+                                Char('d') => {
+                                    self.mind_map.cut_node();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('D') => {
+                                    self.mind_map.cut_children();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Delete => {
+                                    self.mind_map.delete_node_no_clipboard();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('y') => {
+                                    self.mind_map.yank_node();
+                                }
+                                Char('Y') => {
+                                    self.mind_map.yank_children();
+                                }
+                                Char('p') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        self.mind_map.append_clipboard_to_title();
+                                    } else {
+                                        self.mind_map.paste_as_children();
+                                    }
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('P') => {
+                                    self.mind_map.paste_as_siblings();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
 
-                            Char(' ') => { self.mind_map.toggle_node(); }
-                            Char('v') => { self.mind_map.collapse_all(); }
-                            Char('V') => { self.mind_map.collapse_children(); }
-                            Char('b') => { self.mind_map.expand_all(); }
-                            Char('f') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) {
-                                    input.reset(); self.search_results.clear(); self.search_index = 0; self.search_term.clear();
-                                    self.previous_view_mode = ViewMode::ViewMindMap; self.view_mode = ViewMode::Search;
-                                } else { self.mind_map.focus(); }
-                            }
-                            Char('r') => {
-                                if key.modifiers.contains(KeyModifiers::CONTROL) { self.mind_map.redo(); }
-                                else { self.mind_map.collapse_other_branches(); }
-                            }
-                            Char('R') => { self.mind_map.collapse_inner(); }
-                            Char(c @ '1'..='9') => { self.mind_map.collapse_level((c as u8 - b'0') as usize); }
+                                Char(' ') => {
+                                    self.mind_map.toggle_node();
+                                }
+                                Char('v') => {
+                                    self.mind_map.collapse_all();
+                                }
+                                Char('V') => {
+                                    self.mind_map.collapse_children();
+                                }
+                                Char('b') => {
+                                    self.mind_map.expand_all();
+                                }
+                                Char('f') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        input.reset();
+                                        self.search_results.clear();
+                                        self.search_index = 0;
+                                        self.search_term.clear();
+                                        self.previous_view_mode = ViewMode::ViewMindMap;
+                                        self.view_mode = ViewMode::Search;
+                                    } else {
+                                        self.mind_map.focus();
+                                    }
+                                }
+                                Char('r') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        self.mind_map.redo();
+                                    } else {
+                                        self.mind_map.collapse_other_branches();
+                                    }
+                                }
+                                Char('R') => {
+                                    self.mind_map.collapse_inner();
+                                }
+                                Char(c @ '1'..='9') => {
+                                    self.mind_map.collapse_level((c as u8 - b'0') as usize);
+                                }
 
-                            Char('t') => {
-                                let s1 = self.symbol1.clone(); let s2 = self.symbol2.clone();
-                                self.mind_map.toggle_symbol(&s1, &s2);
-                                self.sync_maps(); self.auto_save();
-                            }
-                            Char('#') => { self.mind_map.toggle_numbers(); self.sync_maps(); self.auto_save(); }
-                            Char('+') => { self.mind_map.modify_positive_rank(-1); self.sync_maps(); self.auto_save(); }
-                            Char('=') => { self.mind_map.modify_positive_rank(1); self.sync_maps(); self.auto_save(); }
-                            Char('-') => { self.mind_map.modify_negative_rank(1); self.sync_maps(); self.auto_save(); }
-                            Char('_') => { self.mind_map.modify_negative_rank(-1); self.sync_maps(); self.auto_save(); }
-                            Char('H') => { self.mind_map.toggle_hide(); self.sync_maps(); self.auto_save(); }
+                                Char('t') => {
+                                    let s1 = self.symbol1.clone();
+                                    let s2 = self.symbol2.clone();
+                                    self.mind_map.toggle_symbol(&s1, &s2);
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('#') => {
+                                    self.mind_map.toggle_numbers();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('+') => {
+                                    self.mind_map.modify_positive_rank(-1);
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('=') => {
+                                    self.mind_map.modify_positive_rank(1);
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('-') => {
+                                    self.mind_map.modify_negative_rank(1);
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('_') => {
+                                    self.mind_map.modify_negative_rank(-1);
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('H') => {
+                                    self.mind_map.toggle_hide();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
 
-                            Char('J') => { self.mind_map.move_node_down(); self.sync_maps(); self.auto_save(); }
-                            Char('K') => { self.mind_map.move_node_up(); self.sync_maps(); self.auto_save(); }
-                            Char('T') => { self.mind_map.sort_siblings(); self.sync_maps(); self.auto_save(); }
+                                Char('J') => {
+                                    self.mind_map.move_node_down();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('K') => {
+                                    self.mind_map.move_node_up();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
+                                Char('T') => {
+                                    self.mind_map.sort_siblings();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
 
-                            Char('x') => { self.export_html(); }
-                            Char('X') => { self.mind_map.clipboard = Some(self.mind_map.to_text()); }
+                                Char('x') => {
+                                    self.export_html();
+                                }
+                                Char('X') => {
+                                    self.mind_map.clipboard = Some(self.mind_map.to_text());
+                                }
 
-                            Char('u') => { self.mind_map.undo(); self.sync_maps(); self.auto_save(); }
+                                Char('u') => {
+                                    self.mind_map.undo();
+                                    self.sync_maps();
+                                    self.auto_save();
+                                }
 
-                            Char('/') => {
-                                input.reset(); self.search_results.clear(); self.search_index = 0; self.search_term.clear();
-                                self.previous_view_mode = ViewMode::ViewMindMap; self.view_mode = ViewMode::Search;
-                            }
-                            Char('n') => { self.next_search_result(); }
-                            Char('N') => { self.prev_search_result(); }
+                                Char('/') => {
+                                    input.reset();
+                                    self.search_results.clear();
+                                    self.search_index = 0;
+                                    self.search_term.clear();
+                                    self.previous_view_mode = ViewMode::ViewMindMap;
+                                    self.view_mode = ViewMode::Search;
+                                }
+                                Char('n') => {
+                                    self.next_search_result();
+                                }
+                                Char('N') => {
+                                    self.prev_search_result();
+                                }
 
-                            Char('w') => { self.mind_map.max_node_width = (self.mind_map.max_node_width as f32 * 1.2) as usize; self.sync_config(); }
-                            Char('W') => { self.mind_map.max_node_width = (self.mind_map.max_node_width as f32 / 1.2).max(10.0) as usize; self.sync_config(); }
-                            Char('z') => { self.mind_map.line_spacing = self.mind_map.line_spacing.saturating_sub(1); self.sync_config(); }
-                            Char('Z') => { self.mind_map.line_spacing += 1; self.sync_config(); }
+                                Char('w') => {
+                                    self.mind_map.max_node_width =
+                                        (self.mind_map.max_node_width as f32 * 1.2) as usize;
+                                    self.sync_config();
+                                }
+                                Char('W') => {
+                                    self.mind_map.max_node_width =
+                                        (self.mind_map.max_node_width as f32 / 1.2).max(10.0)
+                                            as usize;
+                                    self.sync_config();
+                                }
+                                Char('z') => {
+                                    self.mind_map.line_spacing =
+                                        self.mind_map.line_spacing.saturating_sub(1);
+                                    self.sync_config();
+                                }
+                                Char('Z') => {
+                                    self.mind_map.line_spacing += 1;
+                                    self.sync_config();
+                                }
 
-                            Char('q') => { self.sync_maps(); self.auto_save(); self.view_mode = ViewMode::MapList; }
-                            Char('Q') => { return Ok(()); }
-                            Esc => { self.sync_maps(); self.auto_save(); self.view_mode = ViewMode::MapList; }
+                                Char('q') => {
+                                    self.sync_maps();
+                                    self.auto_save();
+                                    self.view_mode = ViewMode::MapList;
+                                }
+                                Char('Q') => {
+                                    return Ok(());
+                                }
+                                Esc => {
+                                    self.sync_maps();
+                                    self.auto_save();
+                                    self.view_mode = ViewMode::MapList;
+                                }
 
-                            Char('?') => { self.previous_view_mode = ViewMode::ViewMindMap; self.view_mode = ViewMode::ViewHelp; }
+                                Char('?') => {
+                                    self.previous_view_mode = ViewMode::ViewMindMap;
+                                    self.view_mode = ViewMode::ViewHelp;
+                                }
 
-                            _ => {}
+                                _ => {}
                             }
                             self.apply_locks();
                         }
@@ -375,26 +584,38 @@ impl App {
                         ViewMode::EditNode => match key.code {
                             Enter => {
                                 self.mind_map.edit_node(input.value().to_string());
-                                self.sync_maps(); self.auto_save();
+                                self.sync_maps();
+                                self.auto_save();
                                 input.reset();
                                 self.view_mode = ViewMode::ViewMindMap;
                             }
-                            Esc => { input.reset(); self.view_mode = ViewMode::ViewMindMap; }
-                            _ => { input.handle_event(&Event::Key(key)); }
+                            Esc => {
+                                input.reset();
+                                self.view_mode = ViewMode::ViewMindMap;
+                            }
+                            _ => {
+                                input.handle_event(&Event::Key(key));
+                            }
                         },
 
                         ViewMode::Search => match key.code {
                             Enter => {
                                 self.search_term = input.value().to_string();
-                                self.do_search(); input.reset();
+                                self.do_search();
+                                input.reset();
                                 if !self.search_results.is_empty() {
                                     self.search_index = 0;
                                     self.mind_map.active_node = self.search_results[0];
                                 }
                                 self.view_mode = ViewMode::ViewMindMap;
                             }
-                            Esc => { input.reset(); self.view_mode = ViewMode::ViewMindMap; }
-                            _ => { input.handle_event(&Event::Key(key)); }
+                            Esc => {
+                                input.reset();
+                                self.view_mode = ViewMode::ViewMindMap;
+                            }
+                            _ => {
+                                input.handle_event(&Event::Key(key));
+                            }
                         },
 
                         ViewMode::ConfirmQuit => match key.code {
@@ -402,15 +623,22 @@ impl App {
                             _ => self.view_mode = ViewMode::ViewMindMap,
                         },
 
-                        ViewMode::Message => { self.view_mode = self.previous_view_mode.clone(); }
+                        ViewMode::Message => {
+                            self.view_mode = self.previous_view_mode.clone();
+                        }
 
-                        ViewMode::ViewHelp => { self.view_mode = self.previous_view_mode.clone(); }
+                        ViewMode::ViewHelp => {
+                            self.view_mode = self.previous_view_mode.clone();
+                        }
 
                         ViewMode::ViewNodeDetails => match key.code {
                             Char('e') => {
                                 input = input.clone().with_value(
-                                    self.mind_map.nodes.get(&self.mind_map.active_node)
-                                        .map(|n| n.note.clone()).unwrap_or_default()
+                                    self.mind_map
+                                        .nodes
+                                        .get(&self.mind_map.active_node)
+                                        .map(|n| n.note.clone())
+                                        .unwrap_or_default(),
                                 );
                                 self.previous_view_mode = ViewMode::ViewNodeDetails;
                                 self.view_mode = ViewMode::EditNodeNote;
@@ -421,12 +649,18 @@ impl App {
                         ViewMode::EditNodeNote => match key.code {
                             Enter => {
                                 self.mind_map.update_note(input.value().to_string());
-                                self.sync_maps(); self.auto_save();
+                                self.sync_maps();
+                                self.auto_save();
                                 input.reset();
                                 self.view_mode = ViewMode::ViewNodeDetails;
                             }
-                            Esc => { input.reset(); self.view_mode = ViewMode::ViewNodeDetails; }
-                            _ => { input.handle_event(&Event::Key(key)); }
+                            Esc => {
+                                input.reset();
+                                self.view_mode = ViewMode::ViewNodeDetails;
+                            }
+                            _ => {
+                                input.handle_event(&Event::Key(key));
+                            }
                         },
                     }
                 }
@@ -435,7 +669,11 @@ impl App {
     }
 
     fn render(&mut self, f: &mut Frame, area: Rect, input: &Input) {
-        let layout = Layout::vertical([Constraint::Length(1), Constraint::Min(3), Constraint::Length(1)]);
+        let layout = Layout::vertical([
+            Constraint::Length(1),
+            Constraint::Min(3),
+            Constraint::Length(1),
+        ]);
         let [header_area, main_area, footer_area] = layout.areas(area);
 
         match self.view_mode {
@@ -474,14 +712,20 @@ impl App {
     }
 
     fn get_active_title(&self) -> String {
-        self.mind_map.nodes.get(&self.mind_map.active_node).map(|n| n.title.clone()).unwrap_or_default()
+        self.mind_map
+            .nodes
+            .get(&self.mind_map.active_node)
+            .map(|n| n.title.clone())
+            .unwrap_or_default()
     }
 
     fn do_search(&mut self) {
         self.search_results.clear();
         let term = self.search_term.to_lowercase();
         for (&id, node) in &self.mind_map.nodes {
-            if node.title.to_lowercase().contains(&term) && !node.hidden { self.search_results.push(id); }
+            if node.title.to_lowercase().contains(&term) && !node.hidden {
+                self.search_results.push(id);
+            }
         }
         self.search_results.sort();
     }
@@ -500,9 +744,13 @@ impl App {
     }
 
     fn apply_locks(&mut self) {
-        if self.mind_map.active_node == self.prev_active { return; }
+        if self.mind_map.active_node == self.prev_active {
+            return;
+        }
         self.prev_active = self.mind_map.active_node;
-        if self.focus_lock { self.mind_map.focus(); }
+        if self.focus_lock {
+            self.mind_map.focus();
+        }
         if self.center_lock {
             self.center_on_active();
             self.mind_map.refresh_display();
@@ -515,14 +763,22 @@ impl App {
     }
 
     fn next_search_result(&mut self) {
-        if self.search_results.is_empty() { return; }
+        if self.search_results.is_empty() {
+            return;
+        }
         self.search_index = (self.search_index + 1) % self.search_results.len();
         self.mind_map.active_node = self.search_results[self.search_index];
     }
 
     fn prev_search_result(&mut self) {
-        if self.search_results.is_empty() { return; }
-        self.search_index = if self.search_index == 0 { self.search_results.len() - 1 } else { self.search_index - 1 };
+        if self.search_results.is_empty() {
+            return;
+        }
+        self.search_index = if self.search_index == 0 {
+            self.search_results.len() - 1
+        } else {
+            self.search_index - 1
+        };
         self.mind_map.active_node = self.search_results[self.search_index];
     }
 }

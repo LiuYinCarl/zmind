@@ -6,6 +6,7 @@ use ratatui::{
     Frame,
 };
 use tui_input::Input;
+use unicode_width::UnicodeWidthChar;
 
 use crate::{mind_map::MindMap, App};
 
@@ -28,7 +29,11 @@ impl View {
         }
         let list = List::new(items)
             .block(Block::bordered().title(" zmind - Mind Maps "))
-            .highlight_style(Style::default().add_modifier(Modifier::BOLD).fg(Color::Yellow))
+            .highlight_style(
+                Style::default()
+                    .add_modifier(Modifier::BOLD)
+                    .fg(Color::Yellow),
+            )
             .highlight_symbol("> ");
         f.render_stateful_widget(list, area, &mut app.map_list_state);
     }
@@ -42,7 +47,10 @@ impl View {
             .scroll((0, scroll as u16));
         f.render_widget(Clear, modal_area);
         f.render_widget(input_widget, modal_area);
-        f.set_cursor(modal_area.x + ((input.visual_cursor()).max(scroll) - scroll) as u16 + 1, modal_area.y + 1);
+        f.set_cursor(
+            modal_area.x + ((input.visual_cursor()).max(scroll) - scroll) as u16 + 1,
+            modal_area.y + 1,
+        );
     }
 
     /// Render the mind map as a proper visual map with connecting lines.
@@ -54,24 +62,43 @@ impl View {
         let max_rows = area.height.saturating_sub(2) as usize;
         let max_cols = area.width.saturating_sub(2) as usize;
 
+        let col_w = &mm.canvas_col_widths;
+
         let mut lines: Vec<Line> = Vec::new();
 
         for row_offset in 0..max_rows {
             let canvas_row = vy + row_offset;
-            let mut row_chars: Vec<char> = Vec::new();
 
-            if canvas_row < mm.canvas.len() {
-                let canvas_cols = mm.canvas[canvas_row].len();
-                for col_offset in 0..max_cols {
-                    let canvas_col = vx + col_offset;
-                    if canvas_col < canvas_cols {
-                        row_chars.push(mm.canvas[canvas_row][canvas_col]);
+            if canvas_row >= mm.canvas.len() {
+                lines.push(Line::raw(" ".repeat(max_cols)));
+                continue;
+            }
+
+            let canvas_cols = mm.canvas[canvas_row].len();
+
+            // Build the padded row string using per-column visual widths
+            let mut row_padded = String::new();
+            let mut col_prefix: Vec<usize> = Vec::with_capacity(max_cols.min(canvas_cols.saturating_sub(vx)));
+            let mut vis = 0;
+            for col_offset in 0..max_cols {
+                let canvas_col = vx + col_offset;
+                col_prefix.push(vis);
+                if canvas_col < canvas_cols {
+                    let ch = mm.canvas[canvas_row][canvas_col];
+                    row_padded.push(ch);
+                    let cw = if canvas_col < col_w.len() {
+                        col_w[canvas_col]
                     } else {
-                        row_chars.push(' ');
+                        ch.width().unwrap_or(1)
+                    };
+                    for _ in ch.width().unwrap_or(1)..cw {
+                        row_padded.push(' ');
                     }
+                    vis += cw;
+                } else {
+                    row_padded.push(' ');
+                    vis += 1;
                 }
-            } else {
-                row_chars = vec![' '; max_cols];
             }
 
             // Highlight active node (multi-line aware)
@@ -82,49 +109,59 @@ impl View {
                 let alines = active_layout.lines;
 
                 if canvas_row >= ay && canvas_row < ay + alines {
-                    let rel_start = ax.saturating_sub(vx);
-                    let rel_end = (ax + aw).saturating_sub(vx).min(max_cols);
+                    let rel_start_col = ax.saturating_sub(vx);
+                    let rel_end_col = (ax + aw).saturating_sub(vx).min(max_cols);
 
-                    if rel_start < rel_end && rel_end <= row_chars.len() {
-                        let mut styled_spans: Vec<Span> = Vec::new();
-                        if rel_start > 0 {
-                            styled_spans.push(Span::raw(
-                                row_chars[..rel_start].iter().collect::<String>()
+                    if rel_start_col < rel_end_col && rel_start_col < col_prefix.len()
+                        && rel_end_col <= col_prefix.len()
+                    {
+                        let vis_start = col_prefix[rel_start_col];
+                        let vis_end = if rel_end_col < col_prefix.len() {
+                            col_prefix[rel_end_col]
+                        } else {
+                            vis
+                        };
+
+                        if vis_start < vis_end && vis_end <= row_padded.len() {
+                            let chars: Vec<char> = row_padded.chars().collect();
+                            let mut styled_spans: Vec<Span> = Vec::new();
+                            if vis_start > 0 {
+                                styled_spans
+                                    .push(Span::raw(chars[..vis_start].iter().collect::<String>()));
+                            }
+                            styled_spans.push(Span::styled(
+                                chars[vis_start..vis_end].iter().collect::<String>(),
+                                Style::default()
+                                    .fg(Color::Black)
+                                    .bg(Color::Rgb(215, 135, 0))
+                                    .add_modifier(Modifier::BOLD),
                             ));
+                            if vis_end < chars.len() {
+                                styled_spans
+                                    .push(Span::raw(chars[vis_end..].iter().collect::<String>()));
+                            }
+                            lines.push(Line::from(styled_spans));
+                            continue;
                         }
-                        styled_spans.push(Span::styled(
-                            row_chars[rel_start..rel_end].iter().collect::<String>(),
-                            Style::default()
-                                .fg(Color::Black)
-                                .bg(Color::Rgb(215, 135, 0))
-                                .add_modifier(Modifier::BOLD),
-                        ));
-                        if rel_end < row_chars.len() {
-                            styled_spans.push(Span::raw(
-                                row_chars[rel_end..].iter().collect::<String>()
-                            ));
-                        }
-                        lines.push(Line::from(styled_spans));
-                    } else {
-                        lines.push(Line::raw(row_chars.iter().collect::<String>()));
                     }
-                } else {
-                    lines.push(Line::raw(row_chars.iter().collect::<String>()));
                 }
-            } else {
-                lines.push(Line::raw(row_chars.iter().collect::<String>()));
             }
+
+            lines.push(Line::raw(row_padded));
         }
 
         let title = Self::get_title(app);
-        let paragraph = Paragraph::new(Text::from(lines))
-            .block(Block::bordered().title(title));
+        let paragraph = Paragraph::new(Text::from(lines)).block(Block::bordered().title(title));
 
         f.render_widget(paragraph, area);
     }
 
     fn get_title(app: &App) -> String {
-        let name = if app.mind_map.name.is_empty() { "Untitled" } else { &app.mind_map.name };
+        let name = if app.mind_map.name.is_empty() {
+            "Untitled"
+        } else {
+            &app.mind_map.name
+        };
         let pos = format!(" @{},{}", app.viewport_x, app.viewport_y);
         format!(" zmind: {} {} ", name, pos)
     }
@@ -189,11 +226,14 @@ impl View {
         f.render_widget(Paragraph::new(Line::from(hint)), area);
     }
 
-
     // ─── Modals ────────────────────────────────────────────────────
 
     pub fn show_edit_modal(f: &mut Frame, area: Rect, input: &Input, replace: bool) {
-        let title = if replace { "Edit (replace)" } else { "Edit (append)" };
+        let title = if replace {
+            "Edit (replace)"
+        } else {
+            "Edit (append)"
+        };
         let modal_area = Self::create_rect_area(60, 3, area);
 
         let width = modal_area.width.max(3) - 3;
@@ -251,18 +291,30 @@ impl View {
 
         let lines = vec![
             Line::from(vec![
-                Span::styled("Title: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Title: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(title),
             ]),
             Line::raw(""),
             Line::from(vec![
-                Span::styled("Note: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "Note: ",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(note_display),
             ]),
             Line::raw(""),
             Line::from(Span::styled(
                 "e: edit note | any other key: close",
-                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::ITALIC),
             )),
         ];
 
