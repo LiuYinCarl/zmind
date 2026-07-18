@@ -5,7 +5,7 @@ impl MindMap {
 
     pub fn go_left(&mut self) {
         let current = self.active_node;
-        if current <= self.root_id {
+        if current == self.root_id || current == 0 {
             return;
         }
         if let Some(node) = self.nodes.get(&current) {
@@ -238,6 +238,26 @@ impl MindMap {
         self.refresh_display();
     }
 
+    /// Expand the node's ancestors (and itself) so it becomes visible,
+    /// e.g. before jumping to a search result inside a collapsed subtree.
+    pub fn reveal_node(&mut self, id: usize) {
+        if !self.nodes.contains_key(&id) {
+            return;
+        }
+        let mut ancestors = Vec::new();
+        let mut current = id;
+        while let Some(node) = self.nodes.get(&current) {
+            ancestors.push(current);
+            current = node.parent;
+        }
+        for ancestor in ancestors {
+            if let Some(node) = self.nodes.get_mut(&ancestor) {
+                node.collapsed = false;
+            }
+        }
+        self.refresh_display();
+    }
+
     // ─── Move Nodes ────────────────────────────────────────────────
 
     pub fn move_node_up(&mut self) {
@@ -375,7 +395,7 @@ impl MindMap {
     }
 
     fn strip_ranks(title: &str) -> String {
-        let trimmed = title.trim_start_matches(|c: char| c == '+' || c == '-' || c == ' ');
+        let trimmed = title.trim_start_matches(['+', '-', ' ']);
         trimmed.to_string()
     }
 

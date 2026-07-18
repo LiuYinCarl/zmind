@@ -448,6 +448,19 @@ impl App {
                                         self.mind_map.collapse_other_branches();
                                     }
                                 }
+                                Char('s') => {
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) {
+                                        let ascii = self.mind_map.export_ascii();
+                                        match std::fs::write("zmind_export.txt", &ascii) {
+                                            Ok(()) => {
+                                                self.show_message("Exported to zmind_export.txt")
+                                            }
+                                            Err(e) => {
+                                                self.show_message(&format!("Export error: {}", e))
+                                            }
+                                        }
+                                    }
+                                }
                                 Char('R') => {
                                     self.mind_map.collapse_inner();
                                 }

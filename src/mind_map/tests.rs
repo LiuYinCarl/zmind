@@ -746,7 +746,7 @@ fn test_export_multi_branch() {
         concat!(
             "root───┤\n",
             "       ├──A\n",
-            "       │──B\n",
+            "       ├──B\n",
             "       ╰──C\n"
         ),
     );
@@ -899,9 +899,9 @@ fn test_export_cjk_visual_align() {
         "       ╰──测试下──────╮\n",
         "                      ╰──New───┤\n",
         "                               ├──NEW\n",
-        "                               │──NEW\n",
-        "                               │──NEW\n",
-        "                               │──NEW\n",
+        "                               ├──NEW\n",
+        "                               ├──NEW\n",
+        "                               ├──NEW\n",
         "                               ╰──NEW\n",
     );
     assert_eq!(ascii, expected, "Export mismatch");
@@ -1296,4 +1296,58 @@ fn test_star_refresh_display() {
         mm.export_ascii().contains('★'),
         "Canvas should reflect star marker"
     );
+}
+
+#[test]
+fn test_export_cjk_no_space_in_new() {
+    // Regression: CJK text above should not cause spaces inside "NEW" below.
+    let mm = MindMap::from_text("root\n\t中文测试\n\tNEW");
+    let exported = mm.export_ascii();
+    println!("=== EXPORT ===\n{exported}=== END ===");
+    assert!(
+        exported.contains("NEW"),
+        "NEW should be contiguous, but export was:\n{}",
+        exported
+    );
+}
+
+#[test]
+fn test_export_cjk_no_space_in_new_deep() {
+    // Deeper nesting: CJK at depth 1, NEW at depth 1, plus NEW at depth 2
+    let tree = "root\n\t中文测试\n\t\tNEW\n\tNEW";
+    let mm = MindMap::from_text(tree);
+    let exported = mm.export_ascii();
+    println!("=== EXPORT DEEP ===\n{exported}=== END ===");
+    // All "NEW" occurrences must be contiguous
+    for line in exported.lines() {
+        if line.contains('N') && line.contains('W') {
+            assert!(
+                line.contains("NEW"),
+                "NEW should be contiguous in line: {:?}\nFull export:\n{}",
+                line,
+                exported
+            );
+        }
+    }
+}
+
+#[test]
+fn test_export_connector_cjk() {
+    let tree = "根节点\n\t子节点\n\t\tNEW\n\t\tNEW\n\tNEW\n\tNEW";
+    let mm = MindMap::from_text(tree);
+    let exported = mm.export_ascii();
+    println!("=== CONNECTOR TEST ===\n{exported}=== END ===");
+    let lines: Vec<&str> = exported.lines().collect();
+    // Depth-1 children (under root) should use ├── or ╰──, not │──
+    // │── is only for continuing a deeper subtree
+    for (i, line) in lines.iter().enumerate() {
+        let trimmed = line.trim_start();
+        // If this line has │──NEW, it's a bug (orphan vertical bar at wrong depth)
+        if trimmed.starts_with("│──") {
+            panic!(
+                "Line {} has orphan vertical connector: {:?}\nFull export:\n{}",
+                i, line, exported
+            );
+        }
+    }
 }

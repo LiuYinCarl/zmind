@@ -76,28 +76,35 @@ impl View {
 
             let canvas_cols = mm.canvas[canvas_row].len();
 
-            // Build the padded row string using per-column visual widths
-            let mut row_padded = String::new();
-            let mut col_prefix: Vec<usize> = Vec::with_capacity(max_cols.min(canvas_cols.saturating_sub(vx)));
-            let mut vis = 0;
+            // Build the padded row. Skip padding between consecutive narrow
+            // chars under a wide column so e.g. "NEW" stays contiguous below
+            // CJK text.  col_char_prefix maps canvas columns → char indices
+            // for highlight slicing on valid char boundaries.
+            let mut row_chars: Vec<char> = Vec::with_capacity(max_cols + 8);
+            let mut col_char_prefix: Vec<usize> = Vec::with_capacity(max_cols);
             for col_offset in 0..max_cols {
                 let canvas_col = vx + col_offset;
-                col_prefix.push(vis);
+                col_char_prefix.push(row_chars.len());
                 if canvas_col < canvas_cols {
                     let ch = mm.canvas[canvas_row][canvas_col];
-                    row_padded.push(ch);
+                    row_chars.push(ch);
                     let cw = if canvas_col < col_w.len() {
                         col_w[canvas_col]
                     } else {
                         ch.width().unwrap_or(1)
                     };
-                    for _ in ch.width().unwrap_or(1)..cw {
-                        row_padded.push(' ');
+                    let w = ch.width().unwrap_or(1);
+                    let next_is_narrow = canvas_col + 1 < canvas_cols
+                        && mm.canvas[canvas_row][canvas_col + 1]
+                            .width()
+                            .unwrap_or(1)
+                            == 1;
+                    if !(w == 1 && next_is_narrow && cw > 1 && ch.is_alphabetic()) {
+                        let pad = cw.saturating_sub(w);
+                        row_chars.extend(std::iter::repeat_n(' ', pad));
                     }
-                    vis += cw;
                 } else {
-                    row_padded.push(' ');
-                    vis += 1;
+                    row_chars.push(' ');
                 }
             }
 
@@ -112,33 +119,32 @@ impl View {
                     let rel_start_col = ax.saturating_sub(vx);
                     let rel_end_col = (ax + aw).saturating_sub(vx).min(max_cols);
 
-                    if rel_start_col < rel_end_col && rel_start_col < col_prefix.len()
-                        && rel_end_col <= col_prefix.len()
-                    {
-                        let vis_start = col_prefix[rel_start_col];
-                        let vis_end = if rel_end_col < col_prefix.len() {
-                            col_prefix[rel_end_col]
+                    if rel_start_col < rel_end_col && rel_end_col <= col_char_prefix.len() {
+                        let char_start = col_char_prefix[rel_start_col];
+                        let char_end = if rel_end_col < col_char_prefix.len() {
+                            col_char_prefix[rel_end_col]
                         } else {
-                            vis
+                            row_chars.len()
                         };
 
-                        if vis_start < vis_end && vis_end <= row_padded.len() {
-                            let chars: Vec<char> = row_padded.chars().collect();
+                        if char_start < char_end {
                             let mut styled_spans: Vec<Span> = Vec::new();
-                            if vis_start > 0 {
-                                styled_spans
-                                    .push(Span::raw(chars[..vis_start].iter().collect::<String>()));
+                            if char_start > 0 {
+                                styled_spans.push(Span::raw(
+                                    row_chars[..char_start].iter().collect::<String>(),
+                                ));
                             }
                             styled_spans.push(Span::styled(
-                                chars[vis_start..vis_end].iter().collect::<String>(),
+                                row_chars[char_start..char_end].iter().collect::<String>(),
                                 Style::default()
                                     .fg(Color::Black)
                                     .bg(Color::Rgb(215, 135, 0))
                                     .add_modifier(Modifier::BOLD),
                             ));
-                            if vis_end < chars.len() {
-                                styled_spans
-                                    .push(Span::raw(chars[vis_end..].iter().collect::<String>()));
+                            if char_end < row_chars.len() {
+                                styled_spans.push(Span::raw(
+                                    row_chars[char_end..].iter().collect::<String>(),
+                                ));
                             }
                             lines.push(Line::from(styled_spans));
                             continue;
@@ -147,7 +153,7 @@ impl View {
                 }
             }
 
-            lines.push(Line::raw(row_padded));
+            lines.push(Line::raw(row_chars.iter().collect::<String>()));
         }
 
         let title = Self::get_title(app);
@@ -419,7 +425,7 @@ impl View {
             ("|", "Toggle aligned levels"),
             ("x", "Export HTML"),
             ("X", "Export text to clipboard"),
-            ("Ctrl+e", "Export ASCII to file"),
+            ("Ctrl+s", "Export ASCII to file"),
             ("", ""),
             ("History / Search", ""),
             ("u", "Undo"),

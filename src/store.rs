@@ -13,11 +13,18 @@ struct DataWrapper {
     active_index: usize,
 }
 
+/// Borrowed view for serialization — avoids cloning all maps on every save.
+#[derive(Serialize)]
+struct DataWrapperRef<'a> {
+    maps: &'a [MindMap],
+    active_index: usize,
+}
+
 pub struct Store;
 
 impl Store {
     fn dir() -> PathBuf {
-        let mut path = dirs::config_dir().unwrap();
+        let mut path = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
         path.push(DIR_NAME);
         path
     }
@@ -33,8 +40,19 @@ impl Store {
         let path = Self::data_path();
         if path.exists() {
             if let Ok(raw) = fs::read_to_string(&path) {
-                if let Ok(wrapper) = serde_json::from_str::<DataWrapper>(&raw) {
-                    return (wrapper.maps, wrapper.active_index);
+                match serde_json::from_str::<DataWrapper>(&raw) {
+                    Ok(wrapper) if !wrapper.maps.is_empty() => {
+                        // Clamp a stale/corrupt active_index instead of panicking later.
+                        let active_index = wrapper.active_index.min(wrapper.maps.len() - 1);
+                        return (wrapper.maps, active_index);
+                    }
+                    Ok(_) => { /* empty map list: fall through to default */ }
+                    Err(_) => {
+                        // Back the unreadable file up instead of silently
+                        // overwriting the user's data on the next auto-save.
+                        let backup = Self::dir().join("data.json.bak");
+                        fs::copy(&path, &backup).ok();
+                    }
                 }
             }
         }
@@ -46,10 +64,7 @@ impl Store {
 
     pub fn save(maps: &[MindMap], active_index: usize) {
         fs::create_dir_all(Self::dir()).ok();
-        let wrapper = DataWrapper {
-            maps: maps.to_vec(),
-            active_index,
-        };
+        let wrapper = DataWrapperRef { maps, active_index };
         if let Ok(json) = serde_json::to_string_pretty(&wrapper) {
             fs::write(Self::data_path(), json).ok();
         }

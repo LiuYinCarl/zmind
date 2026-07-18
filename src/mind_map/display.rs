@@ -153,6 +153,7 @@ impl MindMap {
                 h: total_h,
                 depth,
                 lines: num_lines,
+                width_limit,
             },
         );
 
@@ -322,14 +323,33 @@ impl MindMap {
                 self.set_cell(bar_x, y, ch);
             }
 
-            for &child_id in &visible_children {
-                if let Some(cl) = self.layouts.get(&child_id) {
-                    let child_mid_y = cl.y + cl.lines / 2;
-                    for x in (bar_x + 1)..cl.x.min(self.map_width) {
-                        self.set_cell(x, child_mid_y, '\u{2500}');
-                    }
-                    self.draw_connections(child_id);
+            // Collect child mid positions before mutable drawing.
+            let child_positions: Vec<(usize, usize, usize)> = visible_children
+                .iter()
+                .filter_map(|&cid| {
+                    self.layouts.get(&cid).map(|cl| (cid, cl.y + cl.lines / 2, cl.x))
+                })
+                .collect();
+
+            for (i, (child_id, child_mid_y, child_x)) in child_positions.iter().enumerate() {
+                let child_id = *child_id;
+                let child_mid_y = *child_mid_y;
+                let child_x = *child_x;
+                // Overwrite bar_x at child's mid-y with branch connector.
+                // First child already handled by the vertical-bar loop above
+                // (├ or ┬); last child also handled (╰ or ┴). Intermediate children
+                // get │ from the loop — fix them to ├.
+                let is_first = i == 0;
+                let is_last = i == visible_children.len() - 1;
+                let is_parent = child_mid_y == parent_mid_y;
+                if !is_first && !is_last {
+                    let ch = if is_parent { '\u{253c}' } else { '\u{251c}' };
+                    self.set_cell(bar_x, child_mid_y, ch);
                 }
+                for x in (bar_x + 1)..child_x.min(self.map_width) {
+                    self.set_cell(x, child_mid_y, '\u{2500}');
+                }
+                self.draw_connections(child_id);
             }
         } else {
             for &child_id in &visible_children {
@@ -417,12 +437,21 @@ impl MindMap {
         let mut out = String::new();
         for row in &self.canvas {
             let mut line = String::new();
+            let mut vis = 0usize;
             for (j, &ch) in row.iter().enumerate() {
-                line.push(ch);
                 let w = ch.width().unwrap_or(1);
-                for _ in w..col_w[j] {
-                    line.push(' ');
+                let expect: usize = col_w[..j].iter().sum();
+                // Skip alignment padding between consecutive narrow chars
+                // that sit under a wide column (e.g. "NEW" below CJK text).
+                let prev_narrow = j > 0 && row[j - 1].width().unwrap_or(1) == 1;
+                if !(w == 1 && prev_narrow && col_w[j - 1] > 1 && ch.is_alphabetic()) {
+                    while vis < expect {
+                        line.push(' ');
+                        vis += 1;
+                    }
                 }
+                line.push(ch);
+                vis += w;
             }
             out.push_str(line.trim_end());
             out.push('\n');

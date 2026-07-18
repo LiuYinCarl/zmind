@@ -46,6 +46,7 @@ pub struct NodeLayout {
     pub h: usize,
     pub depth: usize,
     pub lines: usize,
+    pub width_limit: usize,
 }
 
 /// The entire mind map state.
