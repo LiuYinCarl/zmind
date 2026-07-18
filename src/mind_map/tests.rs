@@ -730,7 +730,7 @@ fn assert_export(tree: &str, expected: &str) {
 fn test_export_simple() {
     assert_export(
         "root\n\tA\n\tB",
-        concat!("root───┤\n", "       ├──A\n", "       ╰──B\n"),
+        concat!("root───┐\n", "       ├──A\n", "       ╰──B\n"),
     );
 }
 
@@ -744,7 +744,7 @@ fn test_export_multi_branch() {
     assert_export(
         "root\n\tA\n\tB\n\tC",
         concat!(
-            "root───┤\n",
+            "root───┐\n",
             "       ├──A\n",
             "       ├──B\n",
             "       ╰──C\n"
@@ -757,7 +757,7 @@ fn test_export_nested() {
     assert_export(
         "root\n\tA\n\t\tA1\n\tB",
         concat!(
-            "root───┤\n",
+            "root───┐\n",
             "       ├──A───╮\n",
             "       │      ╰──A1\n",
             "       ╰──B\n",
@@ -880,7 +880,7 @@ fn test_export_ascii_alignment() {
     mm2.line_spacing = 0;
     mm2.refresh_display();
     let ascii = mm2.export_ascii();
-    let expected = concat!("root───┤\n", "       ├──A\n", "       ╰──B\n");
+    let expected = concat!("root───┐\n", "       ├──A\n", "       ╰──B\n");
     assert_eq!(ascii, expected);
 }
 
@@ -897,7 +897,7 @@ fn test_export_cjk_visual_align() {
     let expected = concat!(
         "root───╮\n",
         "       ╰──测试下──────╮\n",
-        "                      ╰──New───┤\n",
+        "                      ╰──New───┐\n",
         "                               ├──NEW\n",
         "                               ├──NEW\n",
         "                               ├──NEW\n",

@@ -312,12 +312,12 @@ impl MindMap {
                 let is_last = y == last_y;
                 let is_parent = y == parent_mid_y;
                 let ch = match (is_parent, is_first, is_last) {
-                    (true, true, true) => '\u{253c}',
+                    (true, true, true) => '\u{252c}',
                     (true, true, false) => '\u{252c}',
-                    (true, false, true) => '\u{2534}',
+                    (true, false, true) => '\u{252c}',
                     (false, true, false) => '\u{251c}',
                     (false, false, true) => '\u{2570}',
-                    (true, false, false) => '\u{2524}',
+                    (true, false, false) => '\u{2510}',
                     _ => '\u{2502}',
                 };
                 self.set_cell(bar_x, y, ch);
