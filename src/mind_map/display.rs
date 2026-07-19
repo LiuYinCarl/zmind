@@ -99,23 +99,20 @@ impl MindMap {
         };
         let display_lines = Self::lines_for_display(&node.title, width_limit);
         let num_lines = display_lines.len().max(1);
-        let display_w = display_lines
+        // `w` is the display width in terminal columns (CJK chars count as 2).
+        // Layout x-coordinates and the canvas both use display-width space,
+        // so one canvas cell always maps to one terminal column.
+        let w = display_lines
             .iter()
             .map(|l| UnicodeWidthStr::width(l.as_str()))
             .max()
             .unwrap_or(2);
-        let w = display_lines
-            .iter()
-            .map(|l| l.chars().count())
-            .max()
-            .unwrap_or(1)
-            .max(1);
 
         let x = if depth == 0 { 0 } else { parent_rx + gap };
 
         let own_h = num_lines + spacing;
 
-        let my_rx = x + display_w;
+        let my_rx = x + w;
         let children_base = base_y + own_h;
         let mut children_heights = 0usize;
         if !node.collapsed {
@@ -180,7 +177,7 @@ impl MindMap {
             .collect();
 
         for (_id, title, layout) in node_data {
-            let display_lines = Self::lines_for_display(&title, self.max_node_width);
+            let display_lines = Self::lines_for_display(&title, layout.width_limit);
             for (li, line) in display_lines.iter().enumerate() {
                 let cy = layout.y + li;
                 if cy < self.canvas.len() {
@@ -188,18 +185,6 @@ impl MindMap {
                 }
             }
         }
-
-        let cols = self.map_width.max(1);
-        let mut col_w = vec![1; cols];
-        for row in &self.canvas {
-            for (j, &ch) in row.iter().enumerate() {
-                let w = ch.width().unwrap_or(1);
-                if w > col_w[j] {
-                    col_w[j] = w;
-                }
-            }
-        }
-        self.canvas_col_widths = col_w;
     }
 
     fn set_cell(&mut self, x: usize, y: usize, ch: char) {
@@ -327,7 +312,9 @@ impl MindMap {
             let child_positions: Vec<(usize, usize, usize)> = visible_children
                 .iter()
                 .filter_map(|&cid| {
-                    self.layouts.get(&cid).map(|cl| (cid, cl.y + cl.lines / 2, cl.x))
+                    self.layouts
+                        .get(&cid)
+                        .map(|cl| (cid, cl.y + cl.lines / 2, cl.x))
                 })
                 .collect();
 
@@ -358,15 +345,58 @@ impl MindMap {
         }
     }
 
+    /// Draw text into the canvas in display-width space: each char occupies
+    /// `width(ch)` cells; wide chars leave their trailing cell(s) blank.
     fn draw_text_at(&mut self, x: usize, y: usize, text: &str) {
         if y >= self.canvas.len() {
             return;
         }
-        let chars: Vec<char> = text.chars().collect();
-        let max_w = self.canvas[y].len().saturating_sub(x);
-        for (i, &ch) in chars.iter().enumerate().take(max_w) {
-            self.canvas[y][x + i] = ch;
+        let row_w = self.canvas[y].len();
+        let mut cx = x;
+        for ch in text.chars() {
+            let cw = ch.width().unwrap_or(1).max(1);
+            if cx + cw > row_w {
+                break;
+            }
+            self.canvas[y][cx] = ch;
+            cx += cw;
         }
+    }
+
+    /// Convert a canvas row slice into terminal-ready chars.
+    ///
+    /// The canvas is in display-width space (one cell == one terminal
+    /// column), so wide chars are emitted once and their blank trailing
+    /// cells are skipped (terminals advance by the char's own width).
+    /// Cells beyond the row length render as spaces.
+    ///
+    /// Returns the chars plus a prefix map from canvas column (relative to
+    /// `start`) to char index in the returned vec, for highlight slicing.
+    /// Shared by the TUI view and ASCII export so both render identically.
+    pub(crate) fn canvas_row_to_chars(
+        row: &[char],
+        start: usize,
+        len: usize,
+    ) -> (Vec<char>, Vec<usize>) {
+        let mut chars = Vec::with_capacity(len + 8);
+        let mut col_prefix = Vec::with_capacity(len);
+        let mut skip = 0usize;
+        for col_offset in 0..len {
+            let col = start + col_offset;
+            col_prefix.push(chars.len());
+            if skip > 0 {
+                skip -= 1;
+                continue;
+            }
+            if col < row.len() {
+                let ch = row[col];
+                chars.push(ch);
+                skip = ch.width().unwrap_or(1).saturating_sub(1);
+            } else {
+                chars.push(' ');
+            }
+        }
+        (chars, col_prefix)
     }
 
     /// Split text into display lines: first by \n, then word-wrap each.
@@ -419,40 +449,12 @@ impl MindMap {
         result
     }
 
-    /// Export canvas as ASCII with per-column visual alignment.
+    /// Export canvas as text. Uses the same row rendering as the TUI view.
     pub fn export_ascii(&self) -> String {
-        if self.canvas.is_empty() {
-            return String::new();
-        }
-        let cols = self.canvas.iter().map(|r| r.len()).max().unwrap_or(0);
-        let mut col_w: Vec<usize> = vec![1; cols];
-        for row in &self.canvas {
-            for (j, &ch) in row.iter().enumerate() {
-                let w = ch.width().unwrap_or(1);
-                if w > col_w[j] {
-                    col_w[j] = w;
-                }
-            }
-        }
         let mut out = String::new();
         for row in &self.canvas {
-            let mut line = String::new();
-            let mut vis = 0usize;
-            for (j, &ch) in row.iter().enumerate() {
-                let w = ch.width().unwrap_or(1);
-                let expect: usize = col_w[..j].iter().sum();
-                // Skip alignment padding between consecutive narrow chars
-                // that sit under a wide column (e.g. "NEW" below CJK text).
-                let prev_narrow = j > 0 && row[j - 1].width().unwrap_or(1) == 1;
-                if !(w == 1 && prev_narrow && col_w[j - 1] > 1 && ch.is_alphabetic()) {
-                    while vis < expect {
-                        line.push(' ');
-                        vis += 1;
-                    }
-                }
-                line.push(ch);
-                vis += w;
-            }
+            let (chars, _) = Self::canvas_row_to_chars(row, 0, row.len());
+            let line: String = chars.into_iter().collect();
             out.push_str(line.trim_end());
             out.push('\n');
         }

@@ -896,13 +896,13 @@ fn test_export_cjk_visual_align() {
 
     let expected = concat!(
         "root───╮\n",
-        "       ╰──测试下──────╮\n",
-        "                      ╰──New───┐\n",
-        "                               ├──NEW\n",
-        "                               ├──NEW\n",
-        "                               ├──NEW\n",
-        "                               ├──NEW\n",
-        "                               ╰──NEW\n",
+        "       ╰──测试下───╮\n",
+        "                   ╰──New───┐\n",
+        "                            ├──NEW\n",
+        "                            ├──NEW\n",
+        "                            ├──NEW\n",
+        "                            ├──NEW\n",
+        "                            ╰──NEW\n",
     );
     assert_eq!(ascii, expected, "Export mismatch");
 }
@@ -1264,8 +1264,8 @@ fn test_canvas_with_cjk_chars() {
     let cid = find_node_by_title(&mm, "中文测试");
     let layout = mm.layouts.get(&cid).unwrap();
     assert!(
-        layout.w >= 4,
-        "CJK node should have char width >= 4, got {}",
+        layout.w >= 8,
+        "CJK node should have display width >= 8, got {}",
         layout.w
     );
 }
@@ -1350,4 +1350,29 @@ fn test_export_connector_cjk() {
             );
         }
     }
+}
+
+#[test]
+fn test_export_cjk_connector_alignment() {
+    // Regression: a narrow node (NEW) sitting in wide columns created by
+    // CJK text in other rows must keep connectors contiguous (no "─ ─ ─")
+    // and corner chars (╮/╰) vertically aligned with the rows below.
+    let tree = "根节点\n\t子节点gddfdfd发电方式\n\t\tNEW\n\tNEW\n\t\tNEW\n\t\t\tNEW";
+    let mm = MindMap::from_text(tree);
+    let exported = mm.export_ascii();
+    let expected = concat!(
+        "根节点───┐\n",
+        "         │\n",
+        "         ├──子节点gddfdfd发电方式───╮\n",
+        "         │                          │\n",
+        "         │                          ╰──NEW\n",
+        "         │\n",
+        "         ╰──NEW───╮\n",
+        "                  │\n",
+        "                  ╰──NEW───╮\n",
+        "                           │\n",
+        "                           ╰──NEW\n",
+        "\n",
+    );
+    assert_eq!(exported, expected, "Export mismatch");
 }

@@ -26,7 +26,7 @@ main.rs::App     → TUI event loop + view-mode state machine
   │   ├─ nav.rs    → navigation, collapse/expand, move, marks, symbols
   │   ├─ display.rs → layout engine, canvas drawing, export (ASCII/HTML)
   │   ├─ undo.rs   → undo/redo stack management
-  │   └─ tests.rs  → all unit tests (104 tests)
+  │   └─ tests.rs  → all unit tests (108 tests)
   ├─ store.rs    → JSON load/save via `dirs` crate to platform config dir
   └─ view.rs     → all ratatui rendering (no logic, pure presentation)
 ```
@@ -74,9 +74,11 @@ All mutations go through `App` methods that call `MindMap` methods, then `sync_m
 
 These MindMap fields are runtime-only and never serialized: `undo_stack`, `redo_stack`, `clipboard`, `visible_nodes`, `layouts`, `map_width`, `map_height`, `canvas`, `max_node_width`, `line_spacing`, `show_hidden`, `align_levels`.
 
-### Width vs Display Width
+`max_node_width` and `line_spacing` use `skip_serializing` + a custom `default` fn so a JSON roundtrip restores the real defaults (40 / 1) instead of 0.
 
-`NodeLayout.w` stores **char count** (used for canvas allocation), while `display_w` (computed via `unicode-width`) is used for child X-position offset. They differ for CJK characters and other wide glyphs. The canvas uses `char` columns; wide chars occupy one cell visually but have `width() == 2`. The `export_ascii()` function handles this by inserting padding spaces per-column to align wide chars.
+### Display-Width Canvas
+
+All layout coordinates and the canvas itself use **display-width space**: one canvas cell == one terminal column. `NodeLayout.w` is the display width (via `unicode-width`), not a char count. `draw_text_at()` advances by `width(ch)` per char, so wide (CJK) chars leave their trailing cell(s) blank. `MindMap::canvas_row_to_chars()` converts a canvas row to terminal-ready chars by skipping those blank trailing cells; it is shared by the TUI view (`view.rs`) and `export_ascii()` so both render identically.
 
 ### Undo Stack
 

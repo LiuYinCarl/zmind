@@ -77,11 +77,9 @@ pub struct MindMap {
 
     #[serde(skip)]
     pub canvas: Vec<Vec<char>>,
-    #[serde(skip)]
-    pub canvas_col_widths: Vec<usize>,
-    #[serde(skip)]
+    #[serde(skip_serializing, default = "default_max_node_width")]
     pub max_node_width: usize,
-    #[serde(skip)]
+    #[serde(skip_serializing, default = "default_line_spacing")]
     pub line_spacing: usize,
     #[serde(skip)]
     pub show_hidden: bool,
@@ -94,6 +92,16 @@ pub(crate) struct UndoSnapshot {
     pub nodes: HashMap<usize, Node>,
     pub root_id: usize,
     pub active_node: usize,
+}
+
+/// Default for [`MindMap::max_node_width`] when deserializing (field is not persisted).
+fn default_max_node_width() -> usize {
+    40
+}
+
+/// Default for [`MindMap::line_spacing`] when deserializing (field is not persisted).
+fn default_line_spacing() -> usize {
+    1
 }
 
 impl MindMap {
@@ -138,7 +146,6 @@ impl MindMap {
             map_width: 0,
             map_height: 0,
             canvas: Vec::new(),
-            canvas_col_widths: Vec::new(),
             max_node_width: 40,
             line_spacing: 1,
             show_hidden: false,

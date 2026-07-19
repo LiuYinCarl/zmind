@@ -320,7 +320,6 @@ impl MindMap {
             map_width: 0,
             map_height: 0,
             canvas: Vec::new(),
-            canvas_col_widths: Vec::new(),
             max_node_width: 40,
             line_spacing: 1,
             show_hidden: false,

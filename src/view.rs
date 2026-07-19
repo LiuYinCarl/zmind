@@ -6,7 +6,6 @@ use ratatui::{
     Frame,
 };
 use tui_input::Input;
-use unicode_width::UnicodeWidthChar;
 
 use crate::{mind_map::MindMap, App};
 
@@ -62,8 +61,6 @@ impl View {
         let max_rows = area.height.saturating_sub(2) as usize;
         let max_cols = area.width.saturating_sub(2) as usize;
 
-        let col_w = &mm.canvas_col_widths;
-
         let mut lines: Vec<Line> = Vec::new();
 
         for row_offset in 0..max_rows {
@@ -74,39 +71,12 @@ impl View {
                 continue;
             }
 
-            let canvas_cols = mm.canvas[canvas_row].len();
-
-            // Build the padded row. Skip padding between consecutive narrow
-            // chars under a wide column so e.g. "NEW" stays contiguous below
-            // CJK text.  col_char_prefix maps canvas columns → char indices
-            // for highlight slicing on valid char boundaries.
-            let mut row_chars: Vec<char> = Vec::with_capacity(max_cols + 8);
-            let mut col_char_prefix: Vec<usize> = Vec::with_capacity(max_cols);
-            for col_offset in 0..max_cols {
-                let canvas_col = vx + col_offset;
-                col_char_prefix.push(row_chars.len());
-                if canvas_col < canvas_cols {
-                    let ch = mm.canvas[canvas_row][canvas_col];
-                    row_chars.push(ch);
-                    let cw = if canvas_col < col_w.len() {
-                        col_w[canvas_col]
-                    } else {
-                        ch.width().unwrap_or(1)
-                    };
-                    let w = ch.width().unwrap_or(1);
-                    let next_is_narrow = canvas_col + 1 < canvas_cols
-                        && mm.canvas[canvas_row][canvas_col + 1]
-                            .width()
-                            .unwrap_or(1)
-                            == 1;
-                    if !(w == 1 && next_is_narrow && cw > 1 && ch.is_alphabetic()) {
-                        let pad = cw.saturating_sub(w);
-                        row_chars.extend(std::iter::repeat_n(' ', pad));
-                    }
-                } else {
-                    row_chars.push(' ');
-                }
-            }
+            // Build the row from the display-width canvas (one cell == one
+            // terminal column); shared with ASCII export so both render
+            // identically. col_char_prefix maps canvas columns → char
+            // indices for highlight slicing on valid char boundaries.
+            let (row_chars, col_char_prefix) =
+                MindMap::canvas_row_to_chars(&mm.canvas[canvas_row], vx, max_cols);
 
             // Highlight active node (multi-line aware)
             if let Some(active_layout) = mm.layouts.get(&mm.active_node) {
