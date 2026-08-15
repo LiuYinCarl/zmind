@@ -4,8 +4,8 @@ pub struct Cli;
 
 impl Cli {
     pub fn read() {
-        let mut args = env::args().skip(1);
-        while let Some(arg) = args.next() {
+        let args = env::args().skip(1);
+        for arg in args {
             if arg == "--version" {
                 println!("zmind {}", env!("CARGO_PKG_VERSION"));
                 std::process::exit(0);

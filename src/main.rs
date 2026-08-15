@@ -76,7 +76,7 @@ fn restore_terminal() -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let _cli = Cli::read();
+    Cli::read();
     let terminal = init_terminal()?;
     App::setup().run(terminal)?;
     restore_terminal()?;
@@ -362,7 +362,7 @@ impl App {
                                 Char('o') => {
                                     if key.modifiers.contains(KeyModifiers::CONTROL) {
                                         let _ = std::process::Command::new("xdg-open")
-                                            .arg(&self.get_active_title())
+                                            .arg(self.get_active_title())
                                             .spawn();
                                     } else {
                                         self.mind_map.insert_sibling();

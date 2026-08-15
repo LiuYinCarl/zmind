@@ -40,7 +40,7 @@ impl MindMap {
         }
 
         let root = self.root_id;
-        let spacing = line_spacing.max(0);
+        let spacing = line_spacing;
         let connector_gap = 6;
 
         let map_h = self.layout_pass(root, 0, 0, 0, max_width, spacing, connector_gap);
@@ -68,6 +68,7 @@ impl MindMap {
     }
 
     /// Post-order layout: returns total height of subtree rooted at id.
+    #[allow(clippy::too_many_arguments)]
     fn layout_pass(
         &mut self,
         id: usize,

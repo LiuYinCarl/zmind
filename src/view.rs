@@ -176,19 +176,15 @@ impl View {
     fn get_depth(mm: &MindMap, node_id: usize) -> usize {
         let mut depth = 0;
         let mut current = node_id;
-        loop {
-            if let Some(node) = mm.nodes.get(&current) {
-                if node.parent == 0 || node.parent == usize::MAX {
-                    break;
-                }
-                current = node.parent;
-                if current == mm.root_id {
-                    break;
-                }
-                depth += 1;
-            } else {
+        while let Some(node) = mm.nodes.get(&current) {
+            if node.parent == 0 || node.parent == usize::MAX {
                 break;
             }
+            current = node.parent;
+            if current == mm.root_id {
+                break;
+            }
+            depth += 1;
         }
         depth
     }

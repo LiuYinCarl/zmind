@@ -227,14 +227,13 @@ impl MindMap {
                 min_indent = indent;
             }
         }
-        let mut id_counter: usize = 2;
         let mut level_parent = std::collections::HashMap::new();
         let mut level_indent = std::collections::HashMap::new();
         level_parent.insert(1, 0);
         level_indent.insert(1, 0);
         let mut prev_level = 1;
         let mut prev_indent = 0;
-        for line in &lines {
+        for (id_counter, line) in (2..).zip(lines.iter()) {
             let indent = line.len() - line.trim_start().len();
             let adjusted = indent.saturating_sub(min_indent);
             let title = line.trim().to_string().replace("\\n", "\n");
@@ -264,7 +263,6 @@ impl MindMap {
             }
             prev_indent = adjusted;
             prev_level = level;
-            id_counter += 1;
         }
         let mut first_level: Vec<usize> = Vec::new();
         for (&id, node) in &nodes {
@@ -495,7 +493,7 @@ impl MindMap {
         }
         self.push_undo();
         if let Some(node) = self.nodes.get_mut(&self.active_node) {
-            node.title.push_str(" ");
+            node.title.push(' ');
             node.title.push_str(&first_line);
         }
         self.refresh_display();
