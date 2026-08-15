@@ -682,7 +682,7 @@ fn test_layout_produces_positions() {
     let mut mm = MindMap::from_text("root\n\tA\n\tB\n\tC");
     mm.calculate_layout(40, 0);
     assert!(!mm.layouts.is_empty(), "Should produce layouts");
-    for (_id, layout) in &mm.layouts {
+    for layout in mm.layouts.values() {
         assert!(layout.w > 0, "Node width should be positive");
         assert!(layout.h > 0, "Node height should be positive");
     }
@@ -694,8 +694,7 @@ fn test_canvas_builds() {
     mm.calculate_layout(40, 0);
     mm.build_canvas();
     assert!(!mm.canvas.is_empty(), "Canvas should not be empty");
-    assert!(mm.canvas.len() > 0, "Canvas should have rows");
-    assert!(mm.canvas[0].len() > 0, "Canvas should have columns");
+    assert!(!mm.canvas[0].is_empty(), "Canvas should have columns");
 }
 
 #[test]
@@ -842,7 +841,7 @@ fn test_edit_multiline_no_panic() {
     mm.insert_child();
     mm.edit_node("这是测试\n第二行".to_string());
     mm.refresh_display();
-    assert!(mm.canvas.len() > 0);
+    assert!(!mm.canvas.is_empty());
 }
 
 #[test]
@@ -1223,7 +1222,7 @@ fn test_lines_for_display_narrow_wrap() {
 
 #[test]
 fn test_collect_all_descendants_leaf() {
-    let mut mm = MindMap::from_text("root\n\tA\n\tB");
+    let mm = MindMap::from_text("root\n\tA\n\tB");
     let a_id = find_node_by_title(&mm, "A");
     let desc = mm.collect_all_descendants(a_id);
     assert!(desc.is_empty(), "Leaf node should have no descendants");
@@ -1260,7 +1259,7 @@ fn test_canvas_with_cjk_chars() {
     let mut mm = MindMap::from_text("root\n\t中文测试");
     mm.calculate_layout(40, 0);
     mm.build_canvas();
-    assert!(mm.canvas.len() > 0, "Canvas should handle CJK chars");
+    assert!(!mm.canvas.is_empty(), "Canvas should handle CJK chars");
     let cid = find_node_by_title(&mm, "中文测试");
     let layout = mm.layouts.get(&cid).unwrap();
     assert!(

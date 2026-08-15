@@ -531,5 +531,5 @@ pub fn find_node_by_title(mm: &MindMap, title: &str) -> usize {
         .iter()
         .find(|(_, n)| n.title == title)
         .map(|(id, _)| *id)
-        .expect(&format!("Node '{}' not found", title))
+        .unwrap_or_else(|| panic!("Node '{}' not found", title))
 }
